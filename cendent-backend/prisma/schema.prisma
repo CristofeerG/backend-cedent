@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model detalle_kit {
+  id_detalle        Int        @id @default(autoincrement())
+  id_kit            Int?
+  id_producto       Int?
+  cantidad_estandar Decimal    @db.Decimal(10, 2)
+  kits              kits?      @relation(fields: [id_kit], references: [id_kit], onDelete: Cascade, onUpdate: NoAction)
+  productos         productos? @relation(fields: [id_producto], references: [id_producto], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model detalle_transferencia {
+  id_detalle       Int             @id @default(autoincrement())
+  id_transferencia Int?
+  id_lote          Int?
+  cantidad         Decimal         @db.Decimal(10, 2)
+  lotes            lotes?          @relation(fields: [id_lote], references: [id_lote], onDelete: NoAction, onUpdate: NoAction)
+  transferencias   transferencias? @relation(fields: [id_transferencia], references: [id_transferencia], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model kits {
+  id_kit               Int           @id @default(autoincrement())
+  nombre_procedimiento String        @db.VarChar(100)
+  detalle_kit          detalle_kit[]
+  movimientos          movimientos[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model lotes {
+  id_lote               Int                     @id @default(autoincrement())
+  id_producto           Int?
+  id_sucursal           Int?
+  codigo_lote           String?                 @db.VarChar(80)
+  stock_actual          Decimal                 @db.Decimal(10, 2)
+  costo_unit            Decimal?                @db.Decimal(10, 2)
+  fecha_venc            DateTime                @db.Date
+  fecha_ingreso         DateTime?               @default(now()) @db.Timestamp(6)
+  detalle_transferencia detalle_transferencia[]
+  productos             productos?              @relation(fields: [id_producto], references: [id_producto], onDelete: Cascade, onUpdate: NoAction)
+  sucursales            sucursales?             @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction)
+  movimientos           movimientos[]
+}
+
+model movimientos {
+  id_movimiento Int       @id @default(autoincrement())
+  id_usuario    Int?
+  id_lote       Int?
+  id_kit        Int?
+  cantidad      Decimal   @db.Decimal(10, 2)
+  fecha_hora    DateTime? @default(now()) @db.Timestamp(6)
+  tipo_mov      String?   @db.VarChar(50)
+  kits          kits?     @relation(fields: [id_kit], references: [id_kit], onDelete: NoAction, onUpdate: NoAction)
+  lotes         lotes?    @relation(fields: [id_lote], references: [id_lote], onDelete: NoAction, onUpdate: NoAction)
+  usuarios      usuarios? @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model productos {
+  id_producto   Int           @id @default(autoincrement())
+  nombre_mat    String        @db.VarChar(150)
+  categoria     String?       @default("Odontología") @db.VarChar(50)
+  subcategoria  String?       @db.VarChar(50)
+  unidad_medida String        @db.VarChar(30)
+  stock_min     Decimal?      @default(0) @db.Decimal(10, 2)
+  detalle_kit   detalle_kit[]
+  lotes         lotes[]
+}
+
+model sucursales {
+  id_sucursal                                                   Int              @id @default(autoincrement())
+  nom_sucursal                                                  String           @db.VarChar(100)
+  ubicacion                                                     String?          @db.VarChar(255)
+  estado                                                        Boolean?
+  lotes                                                         lotes[]
+  transferencias_transferencias_id_sucursal_destinoTosucursales transferencias[] @relation("transferencias_id_sucursal_destinoTosucursales")
+  transferencias_transferencias_id_sucursal_origenTosucursales  transferencias[] @relation("transferencias_id_sucursal_origenTosucursales")
+  usuarios                                                      usuarios[]
+}
+
+model transferencias {
+  id_transferencia                                          Int                     @id @default(autoincrement())
+  codigo_trz                                                String                  @unique @db.VarChar(20)
+  id_sucursal_origen                                        Int?
+  id_sucursal_destino                                       Int?
+  id_usuario_envia                                          Int?
+  id_usuario_recibe                                         Int?
+  estado                                                    String?                 @default("EN_TRANSITO") @db.VarChar(20)
+  fecha_envio                                               DateTime?               @default(now()) @db.Timestamp(6)
+  fecha_recepcion                                           DateTime?               @db.Timestamp(6)
+  detalle_transferencia                                     detalle_transferencia[]
+  sucursales_transferencias_id_sucursal_destinoTosucursales sucursales?             @relation("transferencias_id_sucursal_destinoTosucursales", fields: [id_sucursal_destino], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction)
+  sucursales_transferencias_id_sucursal_origenTosucursales  sucursales?             @relation("transferencias_id_sucursal_origenTosucursales", fields: [id_sucursal_origen], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_transferencias_id_usuario_enviaTousuarios        usuarios?               @relation("transferencias_id_usuario_enviaTousuarios", fields: [id_usuario_envia], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  usuarios_transferencias_id_usuario_recibeTousuarios       usuarios?               @relation("transferencias_id_usuario_recibeTousuarios", fields: [id_usuario_recibe], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model usuarios {
+  id_usuario                                                Int              @id @default(autoincrement())
+  id_sucursal                                               Int?
+  nom_usuario                                               String           @unique @db.VarChar(50)
+  password_hash                                             String           @db.VarChar(255)
+  rol                                                       String           @db.VarChar(20)
+  movimientos                                               movimientos[]
+  transferencias_transferencias_id_usuario_enviaTousuarios  transferencias[] @relation("transferencias_id_usuario_enviaTousuarios")
+  transferencias_transferencias_id_usuario_recibeTousuarios transferencias[] @relation("transferencias_id_usuario_recibeTousuarios")
+  sucursales                                                sucursales?      @relation(fields: [id_sucursal], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction)
+}
