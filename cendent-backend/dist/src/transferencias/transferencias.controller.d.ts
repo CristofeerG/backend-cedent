@@ -51,12 +51,12 @@ export declare class TransferenciasController {
         } | null;
     } & {
         estado: string | null;
+        codigo_trz: string;
+        id_transferencia: number;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
         id_usuario_envia: number | null;
-        id_transferencia: number;
         id_usuario_recibe: number | null;
-        codigo_trz: string;
         fecha_envio: Date | null;
         fecha_recepcion: Date | null;
     })[]>;
@@ -107,27 +107,27 @@ export declare class TransferenciasController {
         } | null;
     } & {
         estado: string | null;
+        codigo_trz: string;
+        id_transferencia: number;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
         id_usuario_envia: number | null;
-        id_transferencia: number;
         id_usuario_recibe: number | null;
-        codigo_trz: string;
         fecha_envio: Date | null;
         fecha_recepcion: Date | null;
     }>;
-    enviarTransferencia(dto: EnviarTransferenciaDto): Promise<{
+    enviarTransferencia(dto: EnviarTransferenciaDto, req: any): Promise<{
         estado: string | null;
+        codigo_trz: string;
+        id_transferencia: number;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
         id_usuario_envia: number | null;
-        id_transferencia: number;
         id_usuario_recibe: number | null;
-        codigo_trz: string;
         fecha_envio: Date | null;
         fecha_recepcion: Date | null;
     }>;
-    recibirTransferencia(dto: RecibirTransferenciaDto): Promise<{
+    recibirTransferencia(dto: RecibirTransferenciaDto, req: any): Promise<{
         mensaje: string;
         codigo_trz: string;
         lotes_creados: {

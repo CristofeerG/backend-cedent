@@ -12,6 +12,14 @@ export declare class ProductosService {
         unidad_medida: string;
         stock_min: import("@prisma/client/runtime/library").Decimal | null;
     }[]>;
+    buscarPorNombre(nombre: string): import(".prisma/client").Prisma.PrismaPromise<{
+        id_producto: number;
+        nombre_mat: string;
+        categoria: string | null;
+        subcategoria: string | null;
+        unidad_medida: string;
+        stock_min: import("@prisma/client/runtime/library").Decimal | null;
+    }[]>;
     obtenerPorId(idProducto: number): Promise<{
         lotes: {
             id_lote: number;
@@ -40,14 +48,25 @@ export declare class ProductosService {
         unidad_medida: string;
         stock_min: import("@prisma/client/runtime/library").Decimal | null;
     }[]>;
-    crear(dto: CrearProductoDto): import(".prisma/client").Prisma.Prisma__productosClient<{
+    crear(dto: CrearProductoDto, idSucursal: number): Promise<({
+        lotes: {
+            id_lote: number;
+            id_producto: number | null;
+            codigo_lote: string | null;
+            stock_actual: import("@prisma/client/runtime/library").Decimal;
+            costo_unit: import("@prisma/client/runtime/library").Decimal | null;
+            fecha_venc: Date;
+            fecha_ingreso: Date | null;
+            id_sucursal: number | null;
+        }[];
+    } & {
         id_producto: number;
         nombre_mat: string;
         categoria: string | null;
         subcategoria: string | null;
         unidad_medida: string;
         stock_min: import("@prisma/client/runtime/library").Decimal | null;
-    }, never, import("@prisma/client/runtime/library").DefaultArgs>;
+    }) | null>;
     actualizar(idProducto: number, dto: ActualizarProductoDto): Promise<{
         id_producto: number;
         nombre_mat: string;

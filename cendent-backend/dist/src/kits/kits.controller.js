@@ -15,12 +15,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.KitsController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
+const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const crear_kit_dto_1 = require("./dto/crear-kit.dto");
 const kits_service_1 = require("./kits.service");
 let KitsController = class KitsController {
     kitsService;
     constructor(kitsService) {
         this.kitsService = kitsService;
+    }
+    buscarPorNombre(nombre) {
+        if (!nombre?.trim())
+            throw new common_1.BadRequestException('El parámetro nombre es requerido');
+        return this.kitsService.buscarPorNombre(nombre.trim());
     }
     obtenerTodos() {
         return this.kitsService.obtenerTodos();
@@ -36,6 +42,15 @@ let KitsController = class KitsController {
     }
 };
 exports.KitsController = KitsController;
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Buscar kits por nombre de procedimiento (búsqueda parcial, insensible a mayúsculas)' }),
+    (0, swagger_1.ApiQuery)({ name: 'nombre', required: true, type: String }),
+    (0, common_1.Get)('buscar'),
+    __param(0, (0, common_1.Query)('nombre')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], KitsController.prototype, "buscarPorNombre", null);
 __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Listar todos los kits de procedimientos' }),
     (0, common_1.Get)(),
@@ -70,6 +85,7 @@ __decorate([
 exports.KitsController = KitsController = __decorate([
     (0, swagger_1.ApiTags)('Kits'),
     (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('kits'),
     __metadata("design:paramtypes", [kits_service_1.KitsService])
 ], KitsController);

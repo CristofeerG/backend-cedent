@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -6,16 +7,28 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CrearKitDto } from './dto/crear-kit.dto';
 import { KitsService } from './kits.service';
 
 @ApiTags('Kits')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('kits')
 export class KitsController {
   constructor(private readonly kitsService: KitsService) {}
+
+  @ApiOperation({ summary: 'Buscar kits por nombre de procedimiento (búsqueda parcial, insensible a mayúsculas)' })
+  @ApiQuery({ name: 'nombre', required: true, type: String })
+  @Get('buscar')
+  buscarPorNombre(@Query('nombre') nombre: string) {
+    if (!nombre?.trim()) throw new BadRequestException('El parámetro nombre es requerido');
+    return this.kitsService.buscarPorNombre(nombre.trim());
+  }
 
   @ApiOperation({ summary: 'Listar todos los kits de procedimientos' })
   @Get()

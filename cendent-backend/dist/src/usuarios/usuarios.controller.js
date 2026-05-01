@@ -15,6 +15,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsuariosController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
+const roles_guard_1 = require("../auth/guards/roles.guard");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const crear_usuario_dto_1 = require("./dto/crear-usuario.dto");
 const usuarios_service_1 = require("./usuarios.service");
@@ -43,18 +45,20 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], UsuariosController.prototype, "crearUsuario", null);
 __decorate([
-    (0, swagger_1.ApiOperation)({ summary: 'Listar todos los usuarios (requiere autenticación)' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Listar todos los usuarios — solo administrador' }),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
     (0, common_1.Get)(),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], UsuariosController.prototype, "obtenerTodos", null);
 __decorate([
-    (0, swagger_1.ApiOperation)({ summary: 'Obtener un usuario por ID (requiere autenticación)' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Obtener un usuario por ID — solo administrador' }),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __metadata("design:type", Function),

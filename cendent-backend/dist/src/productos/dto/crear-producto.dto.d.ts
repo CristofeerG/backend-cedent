@@ -4,4 +4,7 @@ export declare class CrearProductoDto {
     subcategoria?: string;
     unidad_medida: string;
     stock_min?: number;
+    stock_inicial?: number;
+    fecha_venc?: string;
+    costo_unit?: number;
 }

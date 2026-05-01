@@ -14,10 +14,12 @@ const app_service_1 = require("./app.service");
 const analitica_module_1 = require("./analitica/analitica.module");
 const auth_module_1 = require("./auth/auth.module");
 const kits_module_1 = require("./kits/kits.module");
+const lotes_module_1 = require("./lotes/lotes.module");
 const movimientos_module_1 = require("./movimientos/movimientos.module");
 const notificaciones_module_1 = require("./notificaciones/notificaciones.module");
 const prisma_module_1 = require("./prisma/prisma.module");
 const productos_module_1 = require("./productos/productos.module");
+const sucursales_module_1 = require("./sucursales/sucursales.module");
 const transferencias_module_1 = require("./transferencias/transferencias.module");
 const usuarios_module_1 = require("./usuarios/usuarios.module");
 let AppModule = class AppModule {
@@ -32,7 +34,9 @@ exports.AppModule = AppModule = __decorate([
             usuarios_module_1.UsuariosModule,
             productos_module_1.ProductosModule,
             kits_module_1.KitsModule,
+            lotes_module_1.LotesModule,
             movimientos_module_1.MovimientosModule,
+            sucursales_module_1.SucursalesModule,
             transferencias_module_1.TransferenciasModule,
             notificaciones_module_1.NotificacionesModule,
             analitica_module_1.AnaliticaModule,

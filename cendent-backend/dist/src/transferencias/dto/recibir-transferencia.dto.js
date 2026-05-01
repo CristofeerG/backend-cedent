@@ -10,20 +10,21 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RecibirTransferenciaDto = void 0;
+const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
 class RecibirTransferenciaDto {
-    id_transferencia;
-    id_usuario_recibe;
+    codigo_trz;
 }
 exports.RecibirTransferenciaDto = RecibirTransferenciaDto;
 __decorate([
-    (0, class_validator_1.IsInt)(),
-    (0, class_validator_1.IsPositive)(),
-    __metadata("design:type", Number)
-], RecibirTransferenciaDto.prototype, "id_transferencia", void 0);
-__decorate([
-    (0, class_validator_1.IsInt)(),
-    (0, class_validator_1.IsPositive)(),
-    __metadata("design:type", Number)
-], RecibirTransferenciaDto.prototype, "id_usuario_recibe", void 0);
+    (0, swagger_1.ApiProperty)({
+        description: 'Código de trazabilidad generado al enviar la transferencia',
+        example: 'TRZ-20260429-FUB7D',
+    }),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.Matches)(/^TRZ-\d{8}-[A-Z0-9]+$/, {
+        message: 'codigo_trz debe tener el formato TRZ-YYYYMMDD-XXXXX',
+    }),
+    __metadata("design:type", String)
+], RecibirTransferenciaDto.prototype, "codigo_trz", void 0);
 //# sourceMappingURL=recibir-transferencia.dto.js.map

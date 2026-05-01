@@ -1,30 +1,35 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsInt, IsPositive, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
-export class ItemLoteDto {
-  @IsInt()
-  @IsPositive()
-  id_lote: number;
+export class ItemProductoTransferenciaDto {
+  @ApiProperty({ description: 'Nombre (parcial) del producto a transferir', example: 'Alginato' })
+  @IsString()
+  @IsNotEmpty()
+  nombre_producto: string;
 
-  @IsPositive()
+  @ApiProperty({ description: 'Cantidad total a transferir', example: 10 })
+  @IsNumber()
+  @Min(1)
   cantidad: number;
 }
 
 export class EnviarTransferenciaDto {
-  @IsInt()
-  @IsPositive()
-  id_sucursal_origen: number;
+  @ApiProperty({ description: 'Nombre (parcial) de la sucursal destino', example: 'Norte' })
+  @IsString()
+  @IsNotEmpty()
+  nombre_sucursal_destino: string;
 
-  @IsInt()
-  @IsPositive()
-  id_sucursal_destino: number;
-
-  @IsInt()
-  @IsPositive()
-  id_usuario_envia: number;
-
+  @ApiProperty({ type: [ItemProductoTransferenciaDto] })
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => ItemLoteDto)
-  lotes: ItemLoteDto[];
+  @Type(() => ItemProductoTransferenciaDto)
+  productos: ItemProductoTransferenciaDto[];
 }

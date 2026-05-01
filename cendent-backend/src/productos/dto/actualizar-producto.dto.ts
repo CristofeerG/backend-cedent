@@ -1,4 +1,5 @@
-import { IsDecimal, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class ActualizarProductoDto {
   @IsString()
@@ -17,7 +18,9 @@ export class ActualizarProductoDto {
   @IsOptional()
   unidad_medida?: string;
 
-  @IsDecimal()
+  @IsNumber()
+  @Min(0)
   @IsOptional()
+  @Type(() => Number)
   stock_min?: number;
 }

@@ -26,6 +26,17 @@ let KitsService = class KitsService {
             },
         });
     }
+    buscarPorNombre(nombre) {
+        return this.prisma.kits.findMany({
+            where: { nombre_procedimiento: { contains: nombre, mode: 'insensitive' } },
+            include: {
+                detalle_kit: {
+                    include: { productos: true },
+                },
+            },
+            orderBy: { nombre_procedimiento: 'asc' },
+        });
+    }
     async obtenerPorId(idKit) {
         const kit = await this.prisma.kits.findUnique({
             where: { id_kit: idKit },

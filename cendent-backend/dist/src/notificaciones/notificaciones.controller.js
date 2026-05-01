@@ -12,6 +12,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificacionesController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
+const roles_guard_1 = require("../auth/guards/roles.guard");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const notificaciones_service_1 = require("./notificaciones.service");
 let NotificacionesController = class NotificacionesController {
@@ -25,7 +27,9 @@ let NotificacionesController = class NotificacionesController {
 };
 exports.NotificacionesController = NotificacionesController;
 __decorate([
-    (0, swagger_1.ApiOperation)({ summary: 'Forzar revisión inmediata de caducidades y stock mínimo (normalmente corre a medianoche)' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Forzar revisión inmediata de caducidades y stock mínimo — solo administrador' }),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
     (0, common_1.Post)('revisar'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),

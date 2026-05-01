@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MovimientosController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
+const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const despachar_kit_dto_1 = require("./dto/despachar-kit.dto");
 const movimientos_service_1 = require("./movimientos.service");
 let MovimientosController = class MovimientosController {
@@ -51,6 +52,7 @@ __decorate([
 exports.MovimientosController = MovimientosController = __decorate([
     (0, swagger_1.ApiTags)('Movimientos'),
     (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('movimientos'),
     __metadata("design:paramtypes", [movimientos_service_1.MovimientosService])
 ], MovimientosController);

@@ -4,13 +4,16 @@ import {
   Get,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { DespacharKitDto } from './dto/despachar-kit.dto';
 import { MovimientosService } from './movimientos.service';
 
 @ApiTags('Movimientos')
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('movimientos')
 export class MovimientosController {
   constructor(private readonly movimientosService: MovimientosService) {}

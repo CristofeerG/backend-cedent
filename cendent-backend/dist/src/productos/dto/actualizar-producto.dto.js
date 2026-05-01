@@ -10,6 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ActualizarProductoDto = void 0;
+const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class ActualizarProductoDto {
     nombre_mat;
@@ -40,8 +41,10 @@ __decorate([
     __metadata("design:type", String)
 ], ActualizarProductoDto.prototype, "unidad_medida", void 0);
 __decorate([
-    (0, class_validator_1.IsDecimal)(),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
     (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
     __metadata("design:type", Number)
 ], ActualizarProductoDto.prototype, "stock_min", void 0);
 //# sourceMappingURL=actualizar-producto.dto.js.map

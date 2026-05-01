@@ -5,17 +5,21 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { EnviarTransferenciaDto } from './dto/enviar-transferencia.dto';
 import { RecibirTransferenciaDto } from './dto/recibir-transferencia.dto';
 import { TransferenciasService } from './transferencias.service';
 
 @ApiTags('Transferencias')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('administrador', 'auxiliar')
 @Controller('transferencias')
 export class TransferenciasController {
   constructor(private readonly transferenciasService: TransferenciasService) {}
@@ -32,15 +36,19 @@ export class TransferenciasController {
     return this.transferenciasService.obtenerPorId(id);
   }
 
-  @ApiOperation({ summary: 'Crear una transferencia de stock entre sucursales (descuenta origen)' })
+  @ApiOperation({ summary: 'Crear transferencia por nombre de producto con FIFO; sucursal origen y usuario se extraen del JWT' })
   @Post('enviar')
-  enviarTransferencia(@Body() dto: EnviarTransferenciaDto) {
-    return this.transferenciasService.enviarTransferencia(dto);
+  enviarTransferencia(@Body() dto: EnviarTransferenciaDto, @Req() req: any) {
+    return this.transferenciasService.enviarTransferencia(
+      dto,
+      req.user.id_sucursal,
+      req.user.id_usuario,
+    );
   }
 
-  @ApiOperation({ summary: 'Registrar la recepción de una transferencia (acredita destino)' })
+  @ApiOperation({ summary: 'Registrar la recepción de una transferencia; usuario recibe se extrae del JWT' })
   @Post('recibir')
-  recibirTransferencia(@Body() dto: RecibirTransferenciaDto) {
-    return this.transferenciasService.recibirTransferencia(dto);
+  recibirTransferencia(@Body() dto: RecibirTransferenciaDto, @Req() req: any) {
+    return this.transferenciasService.recibirTransferencia(dto, req.user.id_usuario);
   }
 }

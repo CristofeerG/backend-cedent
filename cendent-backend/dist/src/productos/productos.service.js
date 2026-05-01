@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProductosService = void 0;
 const common_1 = require("@nestjs/common");
+const codigo_lote_util_1 = require("../common/codigo-lote.util");
 const prisma_service_1 = require("../prisma/prisma.service");
 let ProductosService = class ProductosService {
     prisma;
@@ -19,6 +20,12 @@ let ProductosService = class ProductosService {
     }
     obtenerTodos() {
         return this.prisma.productos.findMany({
+            orderBy: { nombre_mat: 'asc' },
+        });
+    }
+    buscarPorNombre(nombre) {
+        return this.prisma.productos.findMany({
+            where: { nombre_mat: { contains: nombre, mode: 'insensitive' } },
             orderBy: { nombre_mat: 'asc' },
         });
     }
@@ -50,8 +57,29 @@ let ProductosService = class ProductosService {
             stock_total: lotes.reduce((suma, lote) => suma + Number(lote.stock_actual), 0),
         }));
     }
-    crear(dto) {
-        return this.prisma.productos.create({ data: dto });
+    async crear(dto, idSucursal) {
+        const { stock_inicial, fecha_venc, costo_unit, ...datosProducto } = dto;
+        const crearLote = stock_inicial !== undefined && fecha_venc !== undefined;
+        return this.prisma.$transaction(async (tx) => {
+            const producto = await tx.productos.create({ data: datosProducto });
+            if (crearLote) {
+                const codigoLote = (0, codigo_lote_util_1.generarCodigoLote)(producto.subcategoria, producto.id_producto);
+                await tx.lotes.create({
+                    data: {
+                        id_producto: producto.id_producto,
+                        id_sucursal: idSucursal,
+                        codigo_lote: codigoLote,
+                        stock_actual: stock_inicial,
+                        fecha_venc: new Date(fecha_venc),
+                        costo_unit: costo_unit ?? null,
+                    },
+                });
+            }
+            return tx.productos.findUnique({
+                where: { id_producto: producto.id_producto },
+                include: { lotes: true },
+            });
+        });
     }
     async actualizar(idProducto, dto) {
         await this.obtenerPorId(idProducto);

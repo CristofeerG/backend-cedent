@@ -10,6 +10,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CrearProductoDto = void 0;
+const swagger_1 = require("@nestjs/swagger");
+const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class CrearProductoDto {
     nombre_mat;
@@ -17,31 +19,63 @@ class CrearProductoDto {
     subcategoria;
     unidad_medida;
     stock_min;
+    stock_inicial;
+    fecha_venc;
+    costo_unit;
 }
 exports.CrearProductoDto = CrearProductoDto;
 __decorate([
+    (0, swagger_1.ApiProperty)({ example: 'Alginato Cromo Rojo' }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], CrearProductoDto.prototype, "nombre_mat", void 0);
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 'Odontología' }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], CrearProductoDto.prototype, "categoria", void 0);
 __decorate([
+    (0, swagger_1.ApiPropertyOptional)({ example: 'Material de Impresión' }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], CrearProductoDto.prototype, "subcategoria", void 0);
 __decorate([
+    (0, swagger_1.ApiProperty)({ example: 'Kg' }),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsNotEmpty)(),
     __metadata("design:type", String)
 ], CrearProductoDto.prototype, "unidad_medida", void 0);
 __decorate([
-    (0, class_validator_1.IsDecimal)(),
+    (0, swagger_1.ApiPropertyOptional)({ example: 5 }),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
     (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
     __metadata("design:type", Number)
 ], CrearProductoDto.prototype, "stock_min", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Stock inicial del primer lote', example: 100 }),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    __metadata("design:type", Number)
+], CrearProductoDto.prototype, "stock_inicial", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Fecha de vencimiento del lote (ISO 8601)', example: '2027-06-30' }),
+    (0, class_validator_1.IsDateString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], CrearProductoDto.prototype, "fecha_venc", void 0);
+__decorate([
+    (0, swagger_1.ApiPropertyOptional)({ description: 'Costo unitario del lote', example: 12.5 }),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    __metadata("design:type", Number)
+], CrearProductoDto.prototype, "costo_unit", void 0);
 //# sourceMappingURL=crear-producto.dto.js.map

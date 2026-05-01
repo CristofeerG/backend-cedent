@@ -8,6 +8,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CrearUsuarioDto } from './dto/crear-usuario.dto';
 import { UsuariosService } from './usuarios.service';
@@ -23,17 +25,19 @@ export class UsuariosController {
     return this.usuariosService.crearUsuario(dto);
   }
 
-  @ApiOperation({ summary: 'Listar todos los usuarios (requiere autenticación)' })
+  @ApiOperation({ summary: 'Listar todos los usuarios — solo administrador' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('administrador')
   @Get()
   obtenerTodos() {
     return this.usuariosService.obtenerTodos();
   }
 
-  @ApiOperation({ summary: 'Obtener un usuario por ID (requiere autenticación)' })
+  @ApiOperation({ summary: 'Obtener un usuario por ID — solo administrador' })
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('administrador')
   @Get(':id')
   obtenerPorId(@Param('id', ParseIntPipe) id: number) {
     return this.usuariosService.obtenerPorId(id);

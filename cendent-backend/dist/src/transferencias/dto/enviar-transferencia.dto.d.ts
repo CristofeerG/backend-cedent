@@ -1,10 +1,8 @@
-export declare class ItemLoteDto {
-    id_lote: number;
+export declare class ItemProductoTransferenciaDto {
+    nombre_producto: string;
     cantidad: number;
 }
 export declare class EnviarTransferenciaDto {
-    id_sucursal_origen: number;
-    id_sucursal_destino: number;
-    id_usuario_envia: number;
-    lotes: ItemLoteDto[];
+    nombre_sucursal_destino: string;
+    productos: ItemProductoTransferenciaDto[];
 }

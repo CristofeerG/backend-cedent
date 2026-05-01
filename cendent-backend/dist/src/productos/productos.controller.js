@@ -15,6 +15,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProductosController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
+const roles_guard_1 = require("../auth/guards/roles.guard");
+const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const actualizar_producto_dto_1 = require("./dto/actualizar-producto.dto");
 const crear_producto_dto_1 = require("./dto/crear-producto.dto");
 const productos_service_1 = require("./productos.service");
@@ -27,14 +30,19 @@ let ProductosController = class ProductosController {
         const sucursal = idSucursal ? parseInt(idSucursal, 10) : undefined;
         return this.productosService.obtenerInventario(sucursal);
     }
+    buscarPorNombre(nombre) {
+        if (!nombre?.trim())
+            throw new common_1.BadRequestException('El parámetro nombre es requerido');
+        return this.productosService.buscarPorNombre(nombre.trim());
+    }
     obtenerTodos() {
         return this.productosService.obtenerTodos();
     }
     obtenerPorId(id) {
         return this.productosService.obtenerPorId(id);
     }
-    crear(dto) {
-        return this.productosService.crear(dto);
+    crear(dto, req) {
+        return this.productosService.crear(dto, req.user.id_sucursal);
     }
     actualizar(id, dto) {
         return this.productosService.actualizar(id, dto);
@@ -54,6 +62,15 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ProductosController.prototype, "obtenerInventario", null);
 __decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Buscar productos por nombre (búsqueda parcial, insensible a mayúsculas)' }),
+    (0, swagger_1.ApiQuery)({ name: 'nombre', required: true, type: String }),
+    (0, common_1.Get)('buscar'),
+    __param(0, (0, common_1.Query)('nombre')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ProductosController.prototype, "buscarPorNombre", null);
+__decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Listar todos los productos del catálogo' }),
     (0, common_1.Get)(),
     __metadata("design:type", Function),
@@ -69,15 +86,20 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ProductosController.prototype, "obtenerPorId", null);
 __decorate([
-    (0, swagger_1.ApiOperation)({ summary: 'Crear un nuevo producto en el catálogo' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Crear producto — solo administrador' }),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [crear_producto_dto_1.CrearProductoDto]),
+    __metadata("design:paramtypes", [crear_producto_dto_1.CrearProductoDto, Object]),
     __metadata("design:returntype", void 0)
 ], ProductosController.prototype, "crear", null);
 __decorate([
-    (0, swagger_1.ApiOperation)({ summary: 'Actualizar datos de un producto existente' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Actualizar datos de un producto — solo administrador' }),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
     (0, common_1.Patch)(':id'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __param(1, (0, common_1.Body)()),
@@ -86,7 +108,9 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ProductosController.prototype, "actualizar", null);
 __decorate([
-    (0, swagger_1.ApiOperation)({ summary: 'Eliminar un producto del catálogo' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Eliminar un producto — solo administrador' }),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
     __metadata("design:type", Function),
@@ -96,6 +120,7 @@ __decorate([
 exports.ProductosController = ProductosController = __decorate([
     (0, swagger_1.ApiTags)('Productos'),
     (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('productos'),
     __metadata("design:paramtypes", [productos_service_1.ProductosService])
 ], ProductosController);

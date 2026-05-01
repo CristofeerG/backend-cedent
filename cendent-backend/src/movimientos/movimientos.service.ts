@@ -24,7 +24,6 @@ export class MovimientosService {
 
   async despacharKit(idKit: number, idUsuario: number, idSucursal: number) {
     return this.prisma.$transaction(async (tx) => {
-      // 1. Obtener productos y cantidades del kit
       const detalles = await tx.detalle_kit.findMany({
         where: { id_kit: idKit },
         include: { productos: true },
@@ -38,12 +37,10 @@ export class MovimientosService {
 
       const movimientosGenerados: movimientos[] = [];
 
-      // 2. Procesar cada producto del kit
       for (const detalle of detalles) {
         const cantidadNecesaria = Number(detalle.cantidad_estandar);
         const nombreProducto = detalle.productos?.nombre_mat ?? `id ${detalle.id_producto}`;
 
-        // 3. FIFO: lotes con stock disponible ordenados por fecha_venc ASC
         const lotesDisponibles = await tx.lotes.findMany({
           where: {
             id_producto: detalle.id_producto,
@@ -53,7 +50,6 @@ export class MovimientosService {
           orderBy: { fecha_venc: 'asc' },
         });
 
-        // 4. Validar stock total antes de modificar
         const stockTotal = lotesDisponibles.reduce(
           (acumulado, lote) => acumulado + Number(lote.stock_actual),
           0,
@@ -66,7 +62,6 @@ export class MovimientosService {
           );
         }
 
-        // 5. Descontar lote por lote (FIFO) y registrar cada salida
         let restante = cantidadNecesaria;
 
         for (const lote of lotesDisponibles) {

@@ -1,11 +1,14 @@
 import { Controller, Get, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AnaliticaService } from './analitica.service';
 
 @ApiTags('Analítica')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('administrador', 'auxiliar')
 @Controller('analitica')
 export class AnaliticaController {
   constructor(private readonly analiticaService: AnaliticaService) {}

@@ -15,6 +15,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AnaliticaController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
+const roles_guard_1 = require("../auth/guards/roles.guard");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const analitica_service_1 = require("./analitica.service");
 let AnaliticaController = class AnaliticaController {
@@ -49,7 +51,8 @@ __decorate([
 exports.AnaliticaController = AnaliticaController = __decorate([
     (0, swagger_1.ApiTags)('Analítica'),
     (0, swagger_1.ApiBearerAuth)(),
-    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador', 'auxiliar'),
     (0, common_1.Controller)('analitica'),
     __metadata("design:paramtypes", [analitica_service_1.AnaliticaService])
 ], AnaliticaController);
