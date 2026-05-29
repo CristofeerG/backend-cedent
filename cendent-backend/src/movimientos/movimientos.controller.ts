@@ -4,10 +4,12 @@ import {
   Get,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ConsumirProductoDto } from './dto/consumir-producto.dto';
 import { DespacharKitDto } from './dto/despachar-kit.dto';
 import { MovimientosService } from './movimientos.service';
 
@@ -26,13 +28,25 @@ export class MovimientosController {
     return this.movimientosService.obtenerTodos(sucursal);
   }
 
-  @ApiOperation({ summary: 'Despachar un kit descontando stock por FIFO' })
+  @ApiOperation({ summary: 'Despachar un kit; usuario y sucursal se extraen del JWT' })
   @Post('despachar-kit')
-  despacharKit(@Body() dto: DespacharKitDto) {
+  despacharKit(@Body() dto: DespacharKitDto, @Req() req: any) {
     return this.movimientosService.despacharKit(
       dto.id_kit,
-      dto.id_usuario,
-      dto.id_sucursal,
+      req.user.id_usuario,
+      req.user.id_sucursal,
+      dto.sustituciones ?? [],
+    );
+  }
+
+  @ApiOperation({ summary: 'Consumo directo de un producto sin kit (EGRESO_DIRECTO); usuario y sucursal se extraen del JWT' })
+  @Post('consumir')
+  consumirProducto(@Body() dto: ConsumirProductoDto, @Req() req: any) {
+    return this.movimientosService.consumirProducto(
+      dto.id_producto,
+      dto.cantidad,
+      req.user.id_usuario,
+      req.user.id_sucursal,
     );
   }
 }

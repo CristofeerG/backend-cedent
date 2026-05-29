@@ -24,7 +24,7 @@ export class AnaliticaService {
   private async obtenerEgresosPorSucursal(idSucursal: number) {
     return this.prisma.movimientos.findMany({
       where: {
-        tipo_mov: { in: ['EGRESO_KIT', 'SALIDA_TRANSFERENCIA'] },
+        tipo_mov: { in: ['EGRESO_KIT', 'EGRESO_DIRECTO', 'SALIDA_TRANSFERENCIA'] },
         lotes: { id_sucursal: idSucursal },
       },
       include: {

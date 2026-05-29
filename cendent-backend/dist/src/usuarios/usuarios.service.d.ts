@@ -20,8 +20,8 @@ export declare class UsuariosService {
         id_usuario: number;
         id_sucursal: number | null;
         nom_usuario: string;
-        rol: string;
         password_hash: string;
+        rol: string;
     }) | null>;
     obtenerTodos(): Promise<{
         id_usuario: number;

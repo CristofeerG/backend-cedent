@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearKitDto } from './dto/crear-kit.dto';
 
@@ -42,6 +42,14 @@ export class KitsService {
   }
 
   async crear(dto: CrearKitDto) {
+    for (const item of dto.detalle) {
+      if (!item.es_variable && (item.id_producto === null || item.id_producto === undefined)) {
+        throw new BadRequestException(
+          'Los ítems fijos (es_variable: false) deben tener id_producto',
+        );
+      }
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const kit = await tx.kits.create({
         data: { nombre_procedimiento: dto.nombre_procedimiento },
@@ -50,8 +58,9 @@ export class KitsService {
       await tx.detalle_kit.createMany({
         data: dto.detalle.map((item) => ({
           id_kit: kit.id_kit,
-          id_producto: item.id_producto,
+          id_producto: item.id_producto ?? null,
           cantidad_estandar: item.cantidad_estandar,
+          es_variable: item.es_variable ?? false,
         })),
       });
 

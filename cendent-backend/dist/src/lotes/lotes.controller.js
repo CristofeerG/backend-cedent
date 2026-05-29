@@ -15,7 +15,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.LotesController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
+const roles_guard_1 = require("../auth/guards/roles.guard");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const actualizar_lote_dto_1 = require("./dto/actualizar-lote.dto");
 const crear_lote_dto_1 = require("./dto/crear-lote.dto");
 const lotes_service_1 = require("./lotes.service");
 let LotesController = class LotesController {
@@ -29,12 +32,13 @@ let LotesController = class LotesController {
     obtenerPorProducto(idProducto) {
         return this.lotesService.obtenerPorProducto(idProducto);
     }
+    actualizar(id, dto) {
+        return this.lotesService.actualizar(id, dto);
+    }
 };
 exports.LotesController = LotesController;
 __decorate([
-    (0, swagger_1.ApiOperation)({
-        summary: 'Registrar un nuevo lote para un producto existente; codigo_lote e id_sucursal se generan automáticamente',
-    }),
+    (0, swagger_1.ApiOperation)({ summary: 'Registrar un nuevo lote para un producto existente; codigo_lote e id_sucursal se generan automáticamente' }),
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
@@ -50,6 +54,17 @@ __decorate([
     __metadata("design:paramtypes", [Number]),
     __metadata("design:returntype", void 0)
 ], LotesController.prototype, "obtenerPorProducto", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Actualizar stock, costo o fecha de vencimiento de un lote — solo administrador' }),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
+    (0, common_1.Patch)(':id'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, actualizar_lote_dto_1.ActualizarLoteDto]),
+    __metadata("design:returntype", void 0)
+], LotesController.prototype, "actualizar", null);
 exports.LotesController = LotesController = __decorate([
     (0, swagger_1.ApiTags)('Lotes'),
     (0, swagger_1.ApiBearerAuth)(),

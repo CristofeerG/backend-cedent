@@ -17,6 +17,7 @@ export declare class KitsService {
             id_kit: number | null;
             id_producto: number | null;
             cantidad_estandar: import("@prisma/client/runtime/library").Decimal;
+            es_variable: boolean;
             id_detalle: number;
         })[];
     } & {
@@ -37,6 +38,7 @@ export declare class KitsService {
             id_kit: number | null;
             id_producto: number | null;
             cantidad_estandar: import("@prisma/client/runtime/library").Decimal;
+            es_variable: boolean;
             id_detalle: number;
         })[];
     } & {
@@ -57,6 +59,7 @@ export declare class KitsService {
             id_kit: number | null;
             id_producto: number | null;
             cantidad_estandar: import("@prisma/client/runtime/library").Decimal;
+            es_variable: boolean;
             id_detalle: number;
         })[];
     } & {
@@ -77,6 +80,7 @@ export declare class KitsService {
             id_kit: number | null;
             id_producto: number | null;
             cantidad_estandar: import("@prisma/client/runtime/library").Decimal;
+            es_variable: boolean;
             id_detalle: number;
         })[];
     } & {

@@ -1,98 +1,134 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# CENDENT Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+SISTEMA WEB PARA LA GESTION DE INVENTARIO Y ANALITICA PREDICTIVA PARA EL CENTRO DE ESPECIALIDADES DANIEL’S CENDENT S.A.. Desarrollado con **NestJS**, **PostgreSQL** y **Prisma ORM**.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## Descripción
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+API REST que gestiona el inventario de materiales, kits de procedimientos, transferencias entre sucursales, movimientos de stock, usuarios y notificaciones en tiempo real. Incluye un módulo de analítica predictiva con Brain.js.
 
-## Project setup
+## Tecnologías
 
-```bash
-$ npm install
-```
+- **NestJS 11** — framework principal
+- **Prisma 5** — ORM y migraciones
+- **PostgreSQL** — base de datos
+- **JWT + Passport** — autenticación y control de roles
+- **Socket.IO** — notificaciones en tiempo real
+- **Brain.js** — analítica predictiva
+- **Swagger** — documentación de la API
 
-## Compile and run the project
+## Módulos
 
-```bash
-# development
-$ npm run start
+| Módulo | Descripción |
+|---|---|
+| `auth` | Autenticación JWT, roles (admin / usuario) |
+| `usuarios` | Gestión de cuentas de usuario |
+| `sucursales` | Administración de sucursales |
+| `productos` | Catálogo de materiales con stock mínimo |
+| `lotes` | Control de lotes con fecha de vencimiento |
+| `kits` | Kits de procedimientos con detalle de productos |
+| `movimientos` | Consumos y despachos de kits |
+| `transferencias` | Transferencias de lotes entre sucursales |
+| `notificaciones` | Alertas en tiempo real vía WebSockets |
+| `analitica` | Predicción de consumo con red neuronal |
 
-# watch mode
-$ npm run start:dev
+---
 
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
+## Instalación
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm install
 ```
 
-## Deployment
+## Variables de entorno
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Crea un archivo `.env` en la raíz del proyecto con las siguientes variables:
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+```env
+DATABASE_URL="postgresql://usuario:contraseña@localhost:5432/nombre_db"
+JWT_SECRET="tu_clave_secreta"
+PORT=3000
+```
+
+## Base de datos
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Generar el cliente de Prisma
+npx prisma generate
+
+# Ejecutar migraciones
+npx prisma migrate dev
+
+# Poblar datos iniciales (seed)
+npx prisma db seed
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Ejecutar el proyecto
 
-## Resources
+```bash
+# Modo desarrollo (con recarga automática)
+npx nest start --watch
 
-Check out a few resources that may come in handy when working with NestJS:
+# Modo producción
+npx nest build && node dist/main
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+# Modo debug
+npx nest start --debug --watch
+```
 
-## Support
+## Pruebas
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```bash
+# Tests unitarios
+npx jest
 
-## Stay in touch
+# Tests en modo watch
+npx jest --watch
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+# Cobertura de tests
+npx jest --coverage
 
-## License
+# Tests end-to-end
+npx jest --config ./test/jest-e2e.json
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## Linting y formato
+
+```bash
+# Formatear código
+npx prettier --write "src/**/*.ts" "test/**/*.ts"
+
+# Lint con corrección automática
+npx eslint "{src,apps,libs,test}/**/*.ts" --fix
+```
+
+---
+
+## Documentación de la API
+
+Una vez levantado el servidor, la documentación Swagger está disponible en:
+
+```
+http://localhost:3000/api/docs
+```
+
+---
+
+## Estructura del proyecto
+
+```
+src/
+├── auth/               # Autenticación y guards
+├── usuarios/           # CRUD de usuarios
+├── sucursales/         # CRUD de sucursales
+├── productos/          # Catálogo de materiales
+├── lotes/              # Control de lotes
+├── kits/               # Kits de procedimientos
+├── movimientos/        # Movimientos de stock
+├── transferencias/     # Transferencias entre sucursales
+├── notificaciones/     # Gateway WebSockets
+├── analitica/          # Módulo de IA predictiva
+├── prisma/             # Servicio de Prisma
+└── common/             # Utilidades compartidas
+```

@@ -12,6 +12,7 @@ model detalle_kit {
   id_kit            Int?
   id_producto       Int?
   cantidad_estandar Decimal    @db.Decimal(10, 2)
+  es_variable       Boolean    @default(false)
   kits              kits?      @relation(fields: [id_kit], references: [id_kit], onDelete: Cascade, onUpdate: NoAction)
   productos         productos? @relation(fields: [id_producto], references: [id_producto], onDelete: NoAction, onUpdate: NoAction)
 }

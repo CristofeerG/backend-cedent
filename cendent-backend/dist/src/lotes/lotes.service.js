@@ -44,6 +44,19 @@ let LotesService = class LotesService {
             orderBy: { fecha_venc: 'asc' },
         });
     }
+    async actualizar(idLote, dto) {
+        const lote = await this.prisma.lotes.findUnique({ where: { id_lote: idLote } });
+        if (!lote)
+            throw new common_1.NotFoundException(`Lote con id ${idLote} no encontrado`);
+        return this.prisma.lotes.update({
+            where: { id_lote: idLote },
+            data: {
+                ...(dto.stock_actual !== undefined && { stock_actual: dto.stock_actual }),
+                ...(dto.costo_unit !== undefined && { costo_unit: dto.costo_unit }),
+                ...(dto.fecha_venc !== undefined && { fecha_venc: new Date(dto.fecha_venc) }),
+            },
+        });
+    }
 };
 exports.LotesService = LotesService;
 exports.LotesService = LotesService = __decorate([

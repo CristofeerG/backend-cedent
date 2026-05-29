@@ -26,6 +26,7 @@ let ProductosService = class ProductosService {
     buscarPorNombre(nombre) {
         return this.prisma.productos.findMany({
             where: { nombre_mat: { contains: nombre, mode: 'insensitive' } },
+            include: { lotes: true },
             orderBy: { nombre_mat: 'asc' },
         });
     }

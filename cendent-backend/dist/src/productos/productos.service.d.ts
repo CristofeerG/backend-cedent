@@ -12,24 +12,35 @@ export declare class ProductosService {
         unidad_medida: string;
         stock_min: import("@prisma/client/runtime/library").Decimal | null;
     }[]>;
-    buscarPorNombre(nombre: string): import(".prisma/client").Prisma.PrismaPromise<{
+    buscarPorNombre(nombre: string): import(".prisma/client").Prisma.PrismaPromise<({
+        lotes: {
+            id_lote: number;
+            id_producto: number | null;
+            id_sucursal: number | null;
+            codigo_lote: string | null;
+            stock_actual: import("@prisma/client/runtime/library").Decimal;
+            costo_unit: import("@prisma/client/runtime/library").Decimal | null;
+            fecha_venc: Date;
+            fecha_ingreso: Date | null;
+        }[];
+    } & {
         id_producto: number;
         nombre_mat: string;
         categoria: string | null;
         subcategoria: string | null;
         unidad_medida: string;
         stock_min: import("@prisma/client/runtime/library").Decimal | null;
-    }[]>;
+    })[]>;
     obtenerPorId(idProducto: number): Promise<{
         lotes: {
             id_lote: number;
             id_producto: number | null;
+            id_sucursal: number | null;
             codigo_lote: string | null;
             stock_actual: import("@prisma/client/runtime/library").Decimal;
             costo_unit: import("@prisma/client/runtime/library").Decimal | null;
             fecha_venc: Date;
             fecha_ingreso: Date | null;
-            id_sucursal: number | null;
         }[];
     } & {
         id_producto: number;
@@ -52,12 +63,12 @@ export declare class ProductosService {
         lotes: {
             id_lote: number;
             id_producto: number | null;
+            id_sucursal: number | null;
             codigo_lote: string | null;
             stock_actual: import("@prisma/client/runtime/library").Decimal;
             costo_unit: import("@prisma/client/runtime/library").Decimal | null;
             fecha_venc: Date;
             fecha_ingreso: Date | null;
-            id_sucursal: number | null;
         }[];
     } & {
         id_producto: number;

@@ -16,6 +16,7 @@ exports.MovimientosController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const consumir_producto_dto_1 = require("./dto/consumir-producto.dto");
 const despachar_kit_dto_1 = require("./dto/despachar-kit.dto");
 const movimientos_service_1 = require("./movimientos.service");
 let MovimientosController = class MovimientosController {
@@ -27,8 +28,11 @@ let MovimientosController = class MovimientosController {
         const sucursal = idSucursal ? parseInt(idSucursal, 10) : undefined;
         return this.movimientosService.obtenerTodos(sucursal);
     }
-    despacharKit(dto) {
-        return this.movimientosService.despacharKit(dto.id_kit, dto.id_usuario, dto.id_sucursal);
+    despacharKit(dto, req) {
+        return this.movimientosService.despacharKit(dto.id_kit, req.user.id_usuario, req.user.id_sucursal, dto.sustituciones ?? []);
+    }
+    consumirProducto(dto, req) {
+        return this.movimientosService.consumirProducto(dto.id_producto, dto.cantidad, req.user.id_usuario, req.user.id_sucursal);
     }
 };
 exports.MovimientosController = MovimientosController;
@@ -42,13 +46,23 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], MovimientosController.prototype, "obtenerTodos", null);
 __decorate([
-    (0, swagger_1.ApiOperation)({ summary: 'Despachar un kit descontando stock por FIFO' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Despachar un kit; usuario y sucursal se extraen del JWT' }),
     (0, common_1.Post)('despachar-kit'),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [despachar_kit_dto_1.DespacharKitDto]),
+    __metadata("design:paramtypes", [despachar_kit_dto_1.DespacharKitDto, Object]),
     __metadata("design:returntype", void 0)
 ], MovimientosController.prototype, "despacharKit", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Consumo directo de un producto sin kit (EGRESO_DIRECTO); usuario y sucursal se extraen del JWT' }),
+    (0, common_1.Post)('consumir'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [consumir_producto_dto_1.ConsumirProductoDto, Object]),
+    __metadata("design:returntype", void 0)
+], MovimientosController.prototype, "consumirProducto", null);
 exports.MovimientosController = MovimientosController = __decorate([
     (0, swagger_1.ApiTags)('Movimientos'),
     (0, swagger_1.ApiBearerAuth)(),
