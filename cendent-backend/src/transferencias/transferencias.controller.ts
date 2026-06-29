@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -24,10 +25,10 @@ import { TransferenciasService } from './transferencias.service';
 export class TransferenciasController {
   constructor(private readonly transferenciasService: TransferenciasService) {}
 
-  @ApiOperation({ summary: 'Listar todas las transferencias' })
+  @ApiOperation({ summary: 'Listar todas las transferencias de la sucursal del usuario' })
   @Get()
-  obtenerTodas() {
-    return this.transferenciasService.obtenerTodas();
+  obtenerTodas(@Req() req: any) {
+    return this.transferenciasService.obtenerTodas(req.user.id_sucursal);
   }
 
   @ApiOperation({ summary: 'Obtener una transferencia por ID' })
@@ -44,6 +45,12 @@ export class TransferenciasController {
       req.user.id_sucursal,
       req.user.id_usuario,
     );
+  }
+
+  @ApiOperation({ summary: 'Cancelar una transferencia EN_TRANSITO y restaurar stock en origen' })
+  @Patch(':id/cancelar')
+  cancelarTransferencia(@Param('id', ParseIntPipe) id: number) {
+    return this.transferenciasService.cancelarTransferencia(id);
   }
 
   @ApiOperation({ summary: 'Registrar la recepción de una transferencia; usuario recibe se extrae del JWT' })

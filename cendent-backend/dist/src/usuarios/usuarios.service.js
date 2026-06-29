@@ -85,6 +85,43 @@ let UsuariosService = class UsuariosService {
         });
         return usuarios;
     }
+    async editarUsuario(idUsuario, dto) {
+        const usuario = await this.prisma.usuarios.findUnique({
+            where: { id_usuario: idUsuario },
+        });
+        if (!usuario)
+            throw new common_1.NotFoundException(`Usuario ${idUsuario} no encontrado`);
+        const data = {};
+        if (dto.nom_usuario !== undefined)
+            data.nom_usuario = dto.nom_usuario;
+        if (dto.rol !== undefined)
+            data.rol = dto.rol;
+        if (dto.id_sucursal !== undefined)
+            data.id_sucursal = dto.id_sucursal;
+        if (dto.password !== undefined) {
+            data.password_hash = await bcrypt.hash(dto.password, RONDAS_HASH);
+        }
+        return this.prisma.usuarios.update({
+            where: { id_usuario: idUsuario },
+            data,
+            select: {
+                id_usuario: true,
+                nom_usuario: true,
+                rol: true,
+                id_sucursal: true,
+                sucursales: { select: { nom_sucursal: true } },
+            },
+        });
+    }
+    async eliminarUsuario(idUsuario) {
+        const usuario = await this.prisma.usuarios.findUnique({
+            where: { id_usuario: idUsuario },
+        });
+        if (!usuario)
+            throw new common_1.NotFoundException(`Usuario ${idUsuario} no encontrado`);
+        await this.prisma.usuarios.delete({ where: { id_usuario: idUsuario } });
+        return { message: `Usuario ${idUsuario} eliminado` };
+    }
     async obtenerPorId(idUsuario) {
         const usuario = await this.prisma.usuarios.findUnique({
             where: { id_usuario: idUsuario },

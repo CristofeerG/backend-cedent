@@ -1,5 +1,6 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearKitDto } from './dto/crear-kit.dto';
+import { ActualizarKitDto } from './dto/actualizar-kit.dto';
 export declare class KitsService {
     private readonly prisma;
     constructor(prisma: PrismaService);
@@ -67,6 +68,27 @@ export declare class KitsService {
         nombre_procedimiento: string;
     }>;
     crear(dto: CrearKitDto): Promise<({
+        detalle_kit: ({
+            productos: {
+                id_producto: number;
+                nombre_mat: string;
+                categoria: string | null;
+                subcategoria: string | null;
+                unidad_medida: string;
+                stock_min: import("@prisma/client/runtime/library").Decimal | null;
+            } | null;
+        } & {
+            id_kit: number | null;
+            id_producto: number | null;
+            cantidad_estandar: import("@prisma/client/runtime/library").Decimal;
+            es_variable: boolean;
+            id_detalle: number;
+        })[];
+    } & {
+        id_kit: number;
+        nombre_procedimiento: string;
+    }) | null>;
+    actualizar(idKit: number, dto: ActualizarKitDto): Promise<({
         detalle_kit: ({
             productos: {
                 id_producto: number;

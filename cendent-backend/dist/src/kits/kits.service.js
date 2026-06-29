@@ -74,6 +74,37 @@ let KitsService = class KitsService {
             });
         });
     }
+    async actualizar(idKit, dto) {
+        await this.obtenerPorId(idKit);
+        return this.prisma.$transaction(async (tx) => {
+            if (dto.detalle !== undefined) {
+                for (const item of dto.detalle) {
+                    if (!item.es_variable && (item.id_producto === null || item.id_producto === undefined)) {
+                        throw new common_1.BadRequestException('Los ítems fijos (es_variable: false) deben tener id_producto');
+                    }
+                }
+                await tx.detalle_kit.deleteMany({ where: { id_kit: idKit } });
+                await tx.detalle_kit.createMany({
+                    data: dto.detalle.map((item) => ({
+                        id_kit: idKit,
+                        id_producto: item.id_producto ?? null,
+                        cantidad_estandar: item.cantidad_estandar,
+                        es_variable: item.es_variable ?? false,
+                    })),
+                });
+            }
+            if (dto.nombre_procedimiento !== undefined) {
+                await tx.kits.update({
+                    where: { id_kit: idKit },
+                    data: { nombre_procedimiento: dto.nombre_procedimiento },
+                });
+            }
+            return tx.kits.findUnique({
+                where: { id_kit: idKit },
+                include: { detalle_kit: { include: { productos: true } } },
+            });
+        });
+    }
     async eliminar(idKit) {
         await this.obtenerPorId(idKit);
         return this.prisma.kits.delete({ where: { id_kit: idKit } });

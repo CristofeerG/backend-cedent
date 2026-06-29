@@ -47,9 +47,9 @@ exports.AnaliticaService = void 0;
 const common_1 = require("@nestjs/common");
 const brain = __importStar(require("brain.js"));
 const prisma_service_1 = require("../prisma/prisma.service");
-const ITERACIONES = 100;
-const UMBRAL_ERROR = 0.025;
-const MIN_PUNTOS_SERIE = 3;
+const ITERACIONES = 500;
+const UMBRAL_ERROR = 0.01;
+const MIN_PUNTOS_SERIE = 14;
 const HORIZONTE_DIAS = 30;
 let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
     prisma;
@@ -89,18 +89,27 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
         }
         return { mapaConsumos, nombreProducto };
     }
+    suavizarSerie(serie) {
+        return serie.map((_, i) => {
+            const inicio = Math.max(0, i - 2);
+            const fin = Math.min(serie.length - 1, i + 2);
+            const ventana = serie.slice(inicio, fin + 1);
+            return ventana.reduce((s, v) => s + v, 0) / ventana.length;
+        });
+    }
     crearYEntrenarLSTM(serieNormalizada) {
         const red = new brain.recurrent.LSTMTimeStep({
             inputSize: 1,
             hiddenLayers: [10, 5],
             outputSize: 1,
         });
-        const resultado = red.train([serieNormalizada], {
+        const serieSmooth = this.suavizarSerie(serieNormalizada);
+        const resultado = red.train([serieSmooth], {
             iterations: ITERACIONES,
             errorThresh: UMBRAL_ERROR,
             log: false,
         });
-        return { red, errorEntrenamiento: resultado.error };
+        return { red, serieSmooth, errorEntrenamiento: resultado.error };
     }
     async obtenerStockActual(idSucursal, idsProductos) {
         const hoy = new Date();
@@ -129,15 +138,27 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
         const { mapaConsumos, nombreProducto } = this.agruparConsumosPorFecha(egresos);
         const predicciones = [];
         for (const [idProducto, mapaFecha] of mapaConsumos.entries()) {
-            const serie = Array.from(mapaFecha.values());
+            const fechas = Array.from(mapaFecha.keys()).sort();
+            if (fechas.length >= 2) {
+                const cursor = new Date(fechas[0]);
+                const ultima = new Date(fechas[fechas.length - 1]);
+                while (cursor <= ultima) {
+                    const key = cursor.toISOString().slice(0, 10);
+                    if (!mapaFecha.has(key))
+                        mapaFecha.set(key, 0);
+                    cursor.setDate(cursor.getDate() + 1);
+                }
+            }
+            const fechasOrdenadas = Array.from(mapaFecha.keys()).sort();
+            const serie = fechasOrdenadas.map((f) => mapaFecha.get(f));
             if (serie.length < MIN_PUNTOS_SERIE)
                 continue;
             const max = Math.max(...serie);
             if (max === 0)
                 continue;
             const serieNorm = serie.map((v) => v / max);
-            const { red, errorEntrenamiento } = this.crearYEntrenarLSTM(serieNorm);
-            const prediccionNorm = red.run(serieNorm);
+            const { red, serieSmooth, errorEntrenamiento } = this.crearYEntrenarLSTM(serieNorm);
+            const prediccionNorm = red.run(serieSmooth);
             predicciones.push({
                 id_producto: idProducto,
                 nombre_producto: nombreProducto.get(idProducto) ?? `producto_${idProducto}`,
@@ -154,23 +175,35 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
             predicciones,
         };
     }
-    async predecirDemanda(idSucursal) {
-        this.logger.log(`Iniciando predicción de demanda (${HORIZONTE_DIAS}d) para sucursal ${idSucursal}...`);
+    async generarPrediccion(idSucursal) {
+        this.logger.log(`Generando predicción de demanda (${HORIZONTE_DIAS}d) para sucursal ${idSucursal}...`);
         const egresos = await this.obtenerEgresosPorSucursal(idSucursal);
         const { mapaConsumos, nombreProducto } = this.agruparConsumosPorFecha(egresos);
         const idsProductos = Array.from(mapaConsumos.keys());
         const stockPorProducto = await this.obtenerStockActual(idSucursal, idsProductos);
         const predicciones = [];
         for (const [idProducto, mapaFecha] of mapaConsumos.entries()) {
-            const serie = Array.from(mapaFecha.values());
+            const fechas = Array.from(mapaFecha.keys()).sort();
+            if (fechas.length >= 2) {
+                const cursor = new Date(fechas[0]);
+                const ultima = new Date(fechas[fechas.length - 1]);
+                while (cursor <= ultima) {
+                    const key = cursor.toISOString().slice(0, 10);
+                    if (!mapaFecha.has(key))
+                        mapaFecha.set(key, 0);
+                    cursor.setDate(cursor.getDate() + 1);
+                }
+            }
+            const fechasOrdenadas = Array.from(mapaFecha.keys()).sort();
+            const serie = fechasOrdenadas.map((f) => mapaFecha.get(f));
             if (serie.length < MIN_PUNTOS_SERIE)
                 continue;
             const max = Math.max(...serie);
             if (max === 0)
                 continue;
             const serieNorm = serie.map((v) => v / max);
-            const { red } = this.crearYEntrenarLSTM(serieNorm);
-            const forecastNorm = red.forecast(serieNorm, HORIZONTE_DIAS);
+            const { red, serieSmooth } = this.crearYEntrenarLSTM(serieNorm);
+            const forecastNorm = red.forecast(serieSmooth, HORIZONTE_DIAS);
             const consumoPredicho30Dias = Math.round(forecastNorm.reduce((suma, v) => suma + v * max, 0) * 100) / 100;
             const stockTotal = stockPorProducto.get(idProducto) ?? 0;
             const promedioDiario = consumoPredicho30Dias / HORIZONTE_DIAS;
@@ -190,12 +223,30 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
             });
         }
         predicciones.sort((a, b) => a.dias_para_quiebre - b.dias_para_quiebre);
-        this.logger.log(`Predicción finalizada: ${predicciones.length} producto(s) analizados para sucursal ${idSucursal}.`);
+        this.logger.log(`Predicción finalizada: ${predicciones.length} producto(s) para sucursal ${idSucursal}.`);
         return {
             id_sucursal: idSucursal,
             total_productos_analizados: predicciones.length,
             predicciones,
         };
+    }
+    async generarYGuardar(idSucursal) {
+        const resultado = await this.generarPrediccion(idSucursal);
+        const registro = await this.prisma.predicciones_cache.upsert({
+            where: { id_sucursal: idSucursal },
+            create: { id_sucursal: idSucursal, resultado: resultado },
+            update: { resultado: resultado },
+        });
+        return { ...resultado, generado_en: registro.generado_en };
+    }
+    async predecirDemanda(idSucursal) {
+        const cached = await this.prisma.predicciones_cache.findUnique({
+            where: { id_sucursal: idSucursal },
+        });
+        if (cached) {
+            return { ...cached.resultado, generado_en: cached.generado_en };
+        }
+        return this.generarYGuardar(idSucursal);
     }
 };
 exports.AnaliticaService = AnaliticaService;

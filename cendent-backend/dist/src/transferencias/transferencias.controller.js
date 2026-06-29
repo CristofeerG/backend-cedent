@@ -26,8 +26,8 @@ let TransferenciasController = class TransferenciasController {
     constructor(transferenciasService) {
         this.transferenciasService = transferenciasService;
     }
-    obtenerTodas() {
-        return this.transferenciasService.obtenerTodas();
+    obtenerTodas(req) {
+        return this.transferenciasService.obtenerTodas(req.user.id_sucursal);
     }
     obtenerPorId(id) {
         return this.transferenciasService.obtenerPorId(id);
@@ -35,16 +35,20 @@ let TransferenciasController = class TransferenciasController {
     enviarTransferencia(dto, req) {
         return this.transferenciasService.enviarTransferencia(dto, req.user.id_sucursal, req.user.id_usuario);
     }
+    cancelarTransferencia(id) {
+        return this.transferenciasService.cancelarTransferencia(id);
+    }
     recibirTransferencia(dto, req) {
         return this.transferenciasService.recibirTransferencia(dto, req.user.id_usuario);
     }
 };
 exports.TransferenciasController = TransferenciasController;
 __decorate([
-    (0, swagger_1.ApiOperation)({ summary: 'Listar todas las transferencias' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Listar todas las transferencias de la sucursal del usuario' }),
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], TransferenciasController.prototype, "obtenerTodas", null);
 __decorate([
@@ -64,6 +68,14 @@ __decorate([
     __metadata("design:paramtypes", [enviar_transferencia_dto_1.EnviarTransferenciaDto, Object]),
     __metadata("design:returntype", void 0)
 ], TransferenciasController.prototype, "enviarTransferencia", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Cancelar una transferencia EN_TRANSITO y restaurar stock en origen' }),
+    (0, common_1.Patch)(':id/cancelar'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], TransferenciasController.prototype, "cancelarTransferencia", null);
 __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Registrar la recepción de una transferencia; usuario recibe se extrae del JWT' }),
     (0, common_1.Post)('recibir'),

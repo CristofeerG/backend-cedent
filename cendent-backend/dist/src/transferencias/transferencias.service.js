@@ -23,8 +23,14 @@ let TransferenciasService = class TransferenciasService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    obtenerTodas() {
+    obtenerTodas(idSucursal) {
         return this.prisma.transferencias.findMany({
+            where: {
+                OR: [
+                    { id_sucursal_origen: idSucursal },
+                    { id_sucursal_destino: idSucursal },
+                ],
+            },
             include: {
                 detalle_transferencia: { include: { lotes: { include: { productos: true } } } },
                 sucursales_transferencias_id_sucursal_origenTosucursales: true,
@@ -130,6 +136,30 @@ let TransferenciasService = class TransferenciasService {
                 }
             }
             return transferencia;
+        });
+    }
+    async cancelarTransferencia(idTransferencia) {
+        const transferencia = await this.prisma.transferencias.findUnique({
+            where: { id_transferencia: idTransferencia },
+            include: { detalle_transferencia: true },
+        });
+        if (!transferencia)
+            throw new common_1.NotFoundException(`Transferencia ${idTransferencia} no encontrada`);
+        if (transferencia.estado !== 'EN_TRANSITO')
+            throw new common_1.BadRequestException(`No se puede cancelar una transferencia en estado "${transferencia.estado}"`);
+        return this.prisma.$transaction(async (tx) => {
+            for (const det of transferencia.detalle_transferencia) {
+                if (det.id_lote == null)
+                    continue;
+                await tx.lotes.update({
+                    where: { id_lote: det.id_lote },
+                    data: { stock_actual: { increment: Number(det.cantidad) } },
+                });
+            }
+            return tx.transferencias.update({
+                where: { id_transferencia: idTransferencia },
+                data: { estado: 'CANCELADA' },
+            });
         });
     }
     async recibirTransferencia(dto, idUsuarioRecibe) {

@@ -8,9 +8,9 @@ import {
   ResultadoPrediccionDto,
 } from './dto/resultado-entrenamiento.dto';
 
-const ITERACIONES = 100;
-const UMBRAL_ERROR = 0.025;
-const MIN_PUNTOS_SERIE = 3;
+const ITERACIONES = 500;
+const UMBRAL_ERROR = 0.01;
+const MIN_PUNTOS_SERIE = 14;
 const HORIZONTE_DIAS = 30;
 
 @Injectable()
@@ -62,6 +62,15 @@ export class AnaliticaService {
     return { mapaConsumos, nombreProducto };
   }
 
+  private suavizarSerie(serie: number[]): number[] {
+    return serie.map((_, i) => {
+      const inicio = Math.max(0, i - 2);
+      const fin = Math.min(serie.length - 1, i + 2);
+      const ventana = serie.slice(inicio, fin + 1);
+      return ventana.reduce((s, v) => s + v, 0) / ventana.length;
+    });
+  }
+
   private crearYEntrenarLSTM(serieNormalizada: number[]) {
     const red = new (brain.recurrent.LSTMTimeStep as any)({
       inputSize: 1,
@@ -69,13 +78,15 @@ export class AnaliticaService {
       outputSize: 1,
     });
 
-    const resultado = red.train([serieNormalizada], {
+    const serieSmooth = this.suavizarSerie(serieNormalizada);
+
+    const resultado = red.train([serieSmooth], {
       iterations: ITERACIONES,
       errorThresh: UMBRAL_ERROR,
       log: false,
     });
 
-    return { red, errorEntrenamiento: resultado.error as number };
+    return { red, serieSmooth, errorEntrenamiento: resultado.error as number };
   }
 
   private async obtenerStockActual(idSucursal: number, idsProductos: number[]): Promise<Map<number, number>> {
@@ -113,16 +124,29 @@ export class AnaliticaService {
     const predicciones: PrediccionProductoDto[] = [];
 
     for (const [idProducto, mapaFecha] of mapaConsumos.entries()) {
-      const serie = Array.from(mapaFecha.values());
+      // Rellenar días sin consumo con 0 y ordenar cronológicamente
+      const fechas = Array.from(mapaFecha.keys()).sort();
+      if (fechas.length >= 2) {
+        const cursor = new Date(fechas[0]);
+        const ultima = new Date(fechas[fechas.length - 1]);
+        while (cursor <= ultima) {
+          const key = cursor.toISOString().slice(0, 10);
+          if (!mapaFecha.has(key)) mapaFecha.set(key, 0);
+          cursor.setDate(cursor.getDate() + 1);
+        }
+      }
+      const fechasOrdenadas = Array.from(mapaFecha.keys()).sort();
+      const serie = fechasOrdenadas.map((f) => mapaFecha.get(f)!);
+
       if (serie.length < MIN_PUNTOS_SERIE) continue;
 
       const max = Math.max(...serie);
       if (max === 0) continue;
 
       const serieNorm = serie.map((v) => v / max);
-      const { red, errorEntrenamiento } = this.crearYEntrenarLSTM(serieNorm);
+      const { red, serieSmooth, errorEntrenamiento } = this.crearYEntrenarLSTM(serieNorm);
 
-      const prediccionNorm: number = red.run(serieNorm);
+      const prediccionNorm: number = red.run(serieSmooth);
 
       predicciones.push({
         id_producto: idProducto,
@@ -143,8 +167,8 @@ export class AnaliticaService {
     };
   }
 
-  async predecirDemanda(idSucursal: number): Promise<ResultadoPrediccionDto> {
-    this.logger.log(`Iniciando predicción de demanda (${HORIZONTE_DIAS}d) para sucursal ${idSucursal}...`);
+  private async generarPrediccion(idSucursal: number): Promise<ResultadoPrediccionDto> {
+    this.logger.log(`Generando predicción de demanda (${HORIZONTE_DIAS}d) para sucursal ${idSucursal}...`);
 
     const egresos = await this.obtenerEgresosPorSucursal(idSucursal);
     const { mapaConsumos, nombreProducto } = this.agruparConsumosPorFecha(egresos);
@@ -155,17 +179,30 @@ export class AnaliticaService {
     const predicciones: DemandaProductoDto[] = [];
 
     for (const [idProducto, mapaFecha] of mapaConsumos.entries()) {
-      const serie = Array.from(mapaFecha.values());
+      // Rellenar días sin consumo con 0 y ordenar cronológicamente
+      const fechas = Array.from(mapaFecha.keys()).sort();
+      if (fechas.length >= 2) {
+        const cursor = new Date(fechas[0]);
+        const ultima = new Date(fechas[fechas.length - 1]);
+        while (cursor <= ultima) {
+          const key = cursor.toISOString().slice(0, 10);
+          if (!mapaFecha.has(key)) mapaFecha.set(key, 0);
+          cursor.setDate(cursor.getDate() + 1);
+        }
+      }
+      const fechasOrdenadas = Array.from(mapaFecha.keys()).sort();
+      const serie = fechasOrdenadas.map((f) => mapaFecha.get(f)!);
+
       if (serie.length < MIN_PUNTOS_SERIE) continue;
 
       const max = Math.max(...serie);
       if (max === 0) continue;
 
       const serieNorm = serie.map((v) => v / max);
-      const { red } = this.crearYEntrenarLSTM(serieNorm);
+      const { red, serieSmooth } = this.crearYEntrenarLSTM(serieNorm);
 
       // Proyectar los próximos HORIZONTE_DIAS valores normalizados
-      const forecastNorm: number[] = red.forecast(serieNorm, HORIZONTE_DIAS);
+      const forecastNorm: number[] = red.forecast(serieSmooth, HORIZONTE_DIAS);
       const consumoPredicho30Dias = Math.round(
         forecastNorm.reduce((suma, v) => suma + v * max, 0) * 100,
       ) / 100;
@@ -192,15 +229,34 @@ export class AnaliticaService {
       });
     }
 
-    // Ordenar por urgencia: primero los de menor días para quiebre
     predicciones.sort((a, b) => a.dias_para_quiebre - b.dias_para_quiebre);
 
-    this.logger.log(`Predicción finalizada: ${predicciones.length} producto(s) analizados para sucursal ${idSucursal}.`);
+    this.logger.log(`Predicción finalizada: ${predicciones.length} producto(s) para sucursal ${idSucursal}.`);
 
     return {
       id_sucursal: idSucursal,
       total_productos_analizados: predicciones.length,
       predicciones,
     };
+  }
+
+  async generarYGuardar(idSucursal: number): Promise<ResultadoPrediccionDto & { generado_en: Date }> {
+    const resultado = await this.generarPrediccion(idSucursal);
+    const registro = await this.prisma.predicciones_cache.upsert({
+      where: { id_sucursal: idSucursal },
+      create: { id_sucursal: idSucursal, resultado: resultado as any },
+      update: { resultado: resultado as any },
+    });
+    return { ...resultado, generado_en: registro.generado_en };
+  }
+
+  async predecirDemanda(idSucursal: number): Promise<ResultadoPrediccionDto & { generado_en?: Date }> {
+    const cached = await this.prisma.predicciones_cache.findUnique({
+      where: { id_sucursal: idSucursal },
+    });
+    if (cached) {
+      return { ...(cached.resultado as any), generado_en: cached.generado_en };
+    }
+    return this.generarYGuardar(idSucursal);
   }
 }

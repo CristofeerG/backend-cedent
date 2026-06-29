@@ -52,6 +52,9 @@ export declare class ProductosService {
     }>;
     obtenerInventario(idSucursal?: number): Promise<{
         stock_total: number;
+        lotes_proximos_vencer: number;
+        lotes_count: number;
+        proxima_venc: string | null;
         id_producto: number;
         nombre_mat: string;
         categoria: string | null;

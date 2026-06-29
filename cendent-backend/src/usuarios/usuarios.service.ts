@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearUsuarioDto } from './dto/crear-usuario.dto';
+import { EditarUsuarioDto } from './dto/editar-usuario.dto';
 
 const RONDAS_HASH = 10;
 
@@ -46,6 +47,42 @@ export class UsuariosService {
       },
     });
     return usuarios;
+  }
+
+  async editarUsuario(idUsuario: number, dto: EditarUsuarioDto) {
+    const usuario = await this.prisma.usuarios.findUnique({
+      where: { id_usuario: idUsuario },
+    });
+    if (!usuario) throw new NotFoundException(`Usuario ${idUsuario} no encontrado`);
+
+    const data: Record<string, unknown> = {};
+    if (dto.nom_usuario !== undefined) data.nom_usuario = dto.nom_usuario;
+    if (dto.rol !== undefined) data.rol = dto.rol;
+    if (dto.id_sucursal !== undefined) data.id_sucursal = dto.id_sucursal;
+    if (dto.password !== undefined) {
+      data.password_hash = await bcrypt.hash(dto.password, RONDAS_HASH);
+    }
+
+    return this.prisma.usuarios.update({
+      where: { id_usuario: idUsuario },
+      data,
+      select: {
+        id_usuario: true,
+        nom_usuario: true,
+        rol: true,
+        id_sucursal: true,
+        sucursales: { select: { nom_sucursal: true } },
+      },
+    });
+  }
+
+  async eliminarUsuario(idUsuario: number) {
+    const usuario = await this.prisma.usuarios.findUnique({
+      where: { id_usuario: idUsuario },
+    });
+    if (!usuario) throw new NotFoundException(`Usuario ${idUsuario} no encontrado`);
+    await this.prisma.usuarios.delete({ where: { id_usuario: idUsuario } });
+    return { message: `Usuario ${idUsuario} eliminado` };
   }
 
   async obtenerPorId(idUsuario: number) {

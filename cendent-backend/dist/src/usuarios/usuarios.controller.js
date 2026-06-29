@@ -19,6 +19,7 @@ const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 const roles_guard_1 = require("../auth/guards/roles.guard");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const crear_usuario_dto_1 = require("./dto/crear-usuario.dto");
+const editar_usuario_dto_1 = require("./dto/editar-usuario.dto");
 const usuarios_service_1 = require("./usuarios.service");
 let UsuariosController = class UsuariosController {
     usuariosService;
@@ -34,10 +35,19 @@ let UsuariosController = class UsuariosController {
     obtenerPorId(id) {
         return this.usuariosService.obtenerPorId(id);
     }
+    editarUsuario(id, dto) {
+        return this.usuariosService.editarUsuario(id, dto);
+    }
+    eliminarUsuario(id) {
+        return this.usuariosService.eliminarUsuario(id);
+    }
 };
 exports.UsuariosController = UsuariosController;
 __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Registrar un nuevo usuario en el sistema' }),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -65,6 +75,29 @@ __decorate([
     __metadata("design:paramtypes", [Number]),
     __metadata("design:returntype", void 0)
 ], UsuariosController.prototype, "obtenerPorId", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Editar un usuario existente — solo administrador' }),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
+    (0, common_1.Patch)(':id'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, editar_usuario_dto_1.EditarUsuarioDto]),
+    __metadata("design:returntype", void 0)
+], UsuariosController.prototype, "editarUsuario", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Eliminar un usuario — solo administrador' }),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
+    (0, common_1.Delete)(':id'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], UsuariosController.prototype, "eliminarUsuario", null);
 exports.UsuariosController = UsuariosController = __decorate([
     (0, swagger_1.ApiTags)('Usuarios'),
     (0, common_1.Controller)('usuarios'),

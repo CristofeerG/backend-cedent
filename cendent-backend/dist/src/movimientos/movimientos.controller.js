@@ -24,9 +24,10 @@ let MovimientosController = class MovimientosController {
     constructor(movimientosService) {
         this.movimientosService = movimientosService;
     }
-    obtenerTodos(idSucursal) {
+    obtenerTodos(idSucursal, idProducto) {
         const sucursal = idSucursal ? parseInt(idSucursal, 10) : undefined;
-        return this.movimientosService.obtenerTodos(sucursal);
+        const producto = idProducto ? parseInt(idProducto, 10) : undefined;
+        return this.movimientosService.obtenerTodos(sucursal, producto);
     }
     despacharKit(dto, req) {
         return this.movimientosService.despacharKit(dto.id_kit, req.user.id_usuario, req.user.id_sucursal, dto.sustituciones ?? []);
@@ -37,12 +38,14 @@ let MovimientosController = class MovimientosController {
 };
 exports.MovimientosController = MovimientosController;
 __decorate([
-    (0, swagger_1.ApiOperation)({ summary: 'Listar todos los movimientos, opcionalmente filtrados por sucursal' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Listar movimientos, opcionalmente filtrados por sucursal y/o producto (máx. 10 si se filtra por producto)' }),
     (0, swagger_1.ApiQuery)({ name: 'id_sucursal', required: false, type: Number }),
+    (0, swagger_1.ApiQuery)({ name: 'id_producto', required: false, type: Number }),
     (0, common_1.Get)(),
     __param(0, (0, common_1.Query)('id_sucursal')),
+    __param(1, (0, common_1.Query)('id_producto')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], MovimientosController.prototype, "obtenerTodos", null);
 __decorate([

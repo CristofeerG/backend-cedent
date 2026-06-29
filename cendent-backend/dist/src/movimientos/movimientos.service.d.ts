@@ -3,7 +3,7 @@ import { SustitucionDto } from './dto/despachar-kit.dto';
 export declare class MovimientosService {
     private readonly prisma;
     constructor(prisma: PrismaService);
-    obtenerTodos(idSucursal?: number): import(".prisma/client").Prisma.PrismaPromise<({
+    obtenerTodos(idSucursal?: number, idProducto?: number): import(".prisma/client").Prisma.PrismaPromise<({
         kits: {
             id_kit: number;
             nombre_procedimiento: string;
@@ -50,21 +50,36 @@ export declare class MovimientosService {
         id_kit: number | null;
     })[]>;
     despacharKit(idKit: number, idUsuario: number, idSucursal: number, sustituciones: SustitucionDto[]): Promise<{
-        cantidad: import("@prisma/client/runtime/library").Decimal;
-        fecha_hora: Date | null;
-        tipo_mov: string | null;
-        id_movimiento: number;
-        id_usuario: number | null;
-        id_lote: number | null;
-        id_kit: number | null;
-    }[]>;
+        movimientos: {
+            cantidad: import("@prisma/client/runtime/library").Decimal;
+            fecha_hora: Date | null;
+            tipo_mov: string | null;
+            id_movimiento: number;
+            id_usuario: number | null;
+            id_lote: number | null;
+            id_kit: number | null;
+        }[];
+        lotes_usados: {
+            nombre_producto: string;
+            num_lote: string | null;
+            fecha_vencimiento: Date;
+            stock_restante: number;
+        }[];
+    }>;
     consumirProducto(idProducto: number, cantidad: number, idUsuario: number, idSucursal: number): Promise<{
-        cantidad: import("@prisma/client/runtime/library").Decimal;
-        fecha_hora: Date | null;
-        tipo_mov: string | null;
-        id_movimiento: number;
-        id_usuario: number | null;
-        id_lote: number | null;
-        id_kit: number | null;
-    }[]>;
+        movimientos: {
+            cantidad: import("@prisma/client/runtime/library").Decimal;
+            fecha_hora: Date | null;
+            tipo_mov: string | null;
+            id_movimiento: number;
+            id_usuario: number | null;
+            id_lote: number | null;
+            id_kit: number | null;
+        }[];
+        lote_usado: {
+            num_lote: string | null;
+            fecha_vencimiento: Date;
+            stock_restante: number;
+        } | null;
+    }>;
 }

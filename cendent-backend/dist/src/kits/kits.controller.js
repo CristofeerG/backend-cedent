@@ -16,6 +16,7 @@ exports.KitsController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const actualizar_kit_dto_1 = require("./dto/actualizar-kit.dto");
 const crear_kit_dto_1 = require("./dto/crear-kit.dto");
 const kits_service_1 = require("./kits.service");
 let KitsController = class KitsController {
@@ -36,6 +37,9 @@ let KitsController = class KitsController {
     }
     crear(dto) {
         return this.kitsService.crear(dto);
+    }
+    actualizar(id, dto) {
+        return this.kitsService.actualizar(id, dto);
     }
     eliminar(id) {
         return this.kitsService.eliminar(id);
@@ -74,6 +78,15 @@ __decorate([
     __metadata("design:paramtypes", [crear_kit_dto_1.CrearKitDto]),
     __metadata("design:returntype", void 0)
 ], KitsController.prototype, "crear", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Actualizar nombre y/o detalle de un kit existente' }),
+    (0, common_1.Patch)(':id'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, actualizar_kit_dto_1.ActualizarKitDto]),
+    __metadata("design:returntype", void 0)
+], KitsController.prototype, "actualizar", null);
 __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Eliminar un kit y su detalle de materiales' }),
     (0, common_1.Delete)(':id'),

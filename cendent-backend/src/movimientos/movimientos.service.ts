@@ -11,15 +11,21 @@ import { SustitucionDto } from './dto/despachar-kit.dto';
 export class MovimientosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  obtenerTodos(idSucursal?: number) {
+  obtenerTodos(idSucursal?: number, idProducto?: number) {
+    const lotesWhere: Record<string, unknown> = {};
+    if (idSucursal) lotesWhere['id_sucursal'] = idSucursal;
+    if (idProducto) lotesWhere['id_producto'] = idProducto;
+    const hasFilter = Object.keys(lotesWhere).length > 0;
+
     return this.prisma.movimientos.findMany({
-      where: idSucursal ? { lotes: { id_sucursal: idSucursal } } : undefined,
+      where: hasFilter ? { lotes: lotesWhere } : undefined,
       include: {
         lotes: { include: { productos: true, sucursales: true } },
         usuarios: true,
         kits: true,
       },
       orderBy: { fecha_hora: 'desc' },
+      take: idProducto ? 10 : 200,
     });
   }
 
@@ -59,13 +65,28 @@ export class MovimientosService {
           );
       }
 
+      // Build name map for substituted products (needed for lotes_usados metadata)
+      const substIds = [...new Set(sustituciones.map((s) => s.id_producto))];
+      const substProds = substIds.length > 0
+        ? await tx.productos.findMany({
+            where: { id_producto: { in: substIds } },
+            select: { id_producto: true, nombre_mat: true },
+          })
+        : [];
+      const substProdMap = new Map(substProds.map((p) => [p.id_producto, p.nombre_mat ?? '']));
+
       const movimientosGenerados: movimientos[] = [];
+      const lotesUsados: { nombre_producto: string; num_lote: string | null; fecha_vencimiento: Date; stock_restante: number }[] = [];
 
       for (const detalle of detalles) {
         const cantidadNecesaria = Number(detalle.cantidad_estandar);
         const idProductoAUsar = mapaSust.has(detalle.id_detalle)
           ? mapaSust.get(detalle.id_detalle)!
           : detalle.id_producto!;
+
+        const nombreProducto = mapaSust.has(detalle.id_detalle)
+          ? substProdMap.get(idProductoAUsar) ?? `Producto ${idProductoAUsar}`
+          : detalle.productos?.nombre_mat ?? `Producto ${idProductoAUsar}`;
 
         const lotes = await tx.lotes.findMany({
           where: { id_producto: idProductoAUsar, id_sucursal: idSucursal, stock_actual: { gt: 0 } },
@@ -81,21 +102,32 @@ export class MovimientosService {
         }
 
         let restante = cantidadNecesaria;
+        let primerLote = true;
         for (const lote of lotes) {
           if (restante <= 0) break;
           const stockLote = Number(lote.stock_actual);
           const descontado = Math.min(stockLote, restante);
-          await tx.lotes.update({ where: { id_lote: lote.id_lote }, data: { stock_actual: stockLote - descontado } });
+          const stockRestante = stockLote - descontado;
+          await tx.lotes.update({ where: { id_lote: lote.id_lote }, data: { stock_actual: stockRestante } });
           movimientosGenerados.push(
             await tx.movimientos.create({
               data: { id_usuario: idUsuario, id_lote: lote.id_lote, id_kit: idKit, cantidad: descontado, tipo_mov: 'EGRESO_KIT' },
             }),
           );
+          if (primerLote) {
+            lotesUsados.push({
+              nombre_producto: nombreProducto,
+              num_lote: lote.codigo_lote ?? null,
+              fecha_vencimiento: lote.fecha_venc,
+              stock_restante: stockRestante,
+            });
+            primerLote = false;
+          }
           restante -= descontado;
         }
       }
 
-      return movimientosGenerados;
+      return { movimientos: movimientosGenerados, lotes_usados: lotesUsados };
     });
   }
 
@@ -125,21 +157,30 @@ export class MovimientosService {
 
       const movimientosGenerados: movimientos[] = [];
       let restante = cantidad;
+      let loteUsado: { num_lote: string | null; fecha_vencimiento: Date; stock_restante: number } | null = null;
 
       for (const lote of lotes) {
         if (restante <= 0) break;
         const stockLote = Number(lote.stock_actual);
         const descontado = Math.min(stockLote, restante);
-        await tx.lotes.update({ where: { id_lote: lote.id_lote }, data: { stock_actual: stockLote - descontado } });
+        const stockRestante = stockLote - descontado;
+        await tx.lotes.update({ where: { id_lote: lote.id_lote }, data: { stock_actual: stockRestante } });
         movimientosGenerados.push(
           await tx.movimientos.create({
             data: { id_usuario: idUsuario, id_lote: lote.id_lote, id_kit: null, cantidad: descontado, tipo_mov: 'EGRESO_DIRECTO' },
           }),
         );
+        if (loteUsado === null) {
+          loteUsado = {
+            num_lote: lote.codigo_lote ?? null,
+            fecha_vencimiento: lote.fecha_venc,
+            stock_restante: stockRestante,
+          };
+        }
         restante -= descontado;
       }
 
-      return movimientosGenerados;
+      return { movimientos: movimientosGenerados, lote_usado: loteUsado };
     });
   }
 }

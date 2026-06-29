@@ -9,5 +9,6 @@ export declare class AuthController {
         nom_usuario: string;
         rol: string;
         id_sucursal: number | null;
+        nom_sucursal: string;
     }>;
 }

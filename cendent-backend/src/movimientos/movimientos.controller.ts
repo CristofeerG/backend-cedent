@@ -20,12 +20,17 @@ import { MovimientosService } from './movimientos.service';
 export class MovimientosController {
   constructor(private readonly movimientosService: MovimientosService) {}
 
-  @ApiOperation({ summary: 'Listar todos los movimientos, opcionalmente filtrados por sucursal' })
+  @ApiOperation({ summary: 'Listar movimientos, opcionalmente filtrados por sucursal y/o producto (máx. 10 si se filtra por producto)' })
   @ApiQuery({ name: 'id_sucursal', required: false, type: Number })
+  @ApiQuery({ name: 'id_producto', required: false, type: Number })
   @Get()
-  obtenerTodos(@Query('id_sucursal') idSucursal?: string) {
+  obtenerTodos(
+    @Query('id_sucursal') idSucursal?: string,
+    @Query('id_producto') idProducto?: string,
+  ) {
     const sucursal = idSucursal ? parseInt(idSucursal, 10) : undefined;
-    return this.movimientosService.obtenerTodos(sucursal);
+    const producto = idProducto ? parseInt(idProducto, 10) : undefined;
+    return this.movimientosService.obtenerTodos(sucursal, producto);
   }
 
   @ApiOperation({ summary: 'Despachar un kit; usuario y sucursal se extraen del JWT' })

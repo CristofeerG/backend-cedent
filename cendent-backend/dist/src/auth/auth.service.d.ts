@@ -11,5 +11,6 @@ export declare class AuthService {
         nom_usuario: string;
         rol: string;
         id_sucursal: number | null;
+        nom_sucursal: string;
     }>;
 }

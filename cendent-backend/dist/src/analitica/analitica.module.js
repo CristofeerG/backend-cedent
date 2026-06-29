@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AnaliticaModule = void 0;
 const common_1 = require("@nestjs/common");
 const analitica_controller_1 = require("./analitica.controller");
+const analitica_scheduler_1 = require("./analitica.scheduler");
 const analitica_service_1 = require("./analitica.service");
 let AnaliticaModule = class AnaliticaModule {
 };
@@ -16,7 +17,7 @@ exports.AnaliticaModule = AnaliticaModule;
 exports.AnaliticaModule = AnaliticaModule = __decorate([
     (0, common_1.Module)({
         controllers: [analitica_controller_1.AnaliticaController],
-        providers: [analitica_service_1.AnaliticaService],
+        providers: [analitica_service_1.AnaliticaService, analitica_scheduler_1.AnaliticaScheduler],
     })
 ], AnaliticaModule);
 //# sourceMappingURL=analitica.module.js.map

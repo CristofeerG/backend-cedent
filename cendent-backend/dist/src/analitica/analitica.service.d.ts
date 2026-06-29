@@ -6,8 +6,15 @@ export declare class AnaliticaService {
     constructor(prisma: PrismaService);
     private obtenerEgresosPorSucursal;
     private agruparConsumosPorFecha;
+    private suavizarSerie;
     private crearYEntrenarLSTM;
     private obtenerStockActual;
     prepararYEntrenar(idSucursal: number): Promise<ResultadoEntrenamientoDto>;
-    predecirDemanda(idSucursal: number): Promise<ResultadoPrediccionDto>;
+    private generarPrediccion;
+    generarYGuardar(idSucursal: number): Promise<ResultadoPrediccionDto & {
+        generado_en: Date;
+    }>;
+    predecirDemanda(idSucursal: number): Promise<ResultadoPrediccionDto & {
+        generado_en?: Date;
+    }>;
 }

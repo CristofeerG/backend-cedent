@@ -74,14 +74,23 @@ model productos {
 }
 
 model sucursales {
-  id_sucursal                                                   Int              @id @default(autoincrement())
-  nom_sucursal                                                  String           @db.VarChar(100)
-  ubicacion                                                     String?          @db.VarChar(255)
+  id_sucursal                                                   Int                   @id @default(autoincrement())
+  nom_sucursal                                                  String                @db.VarChar(100)
+  ubicacion                                                     String?               @db.VarChar(255)
   estado                                                        Boolean?
   lotes                                                         lotes[]
-  transferencias_transferencias_id_sucursal_destinoTosucursales transferencias[] @relation("transferencias_id_sucursal_destinoTosucursales")
-  transferencias_transferencias_id_sucursal_origenTosucursales  transferencias[] @relation("transferencias_id_sucursal_origenTosucursales")
+  predicciones_cache                                            predicciones_cache?
+  transferencias_transferencias_id_sucursal_destinoTosucursales transferencias[]      @relation("transferencias_id_sucursal_destinoTosucursales")
+  transferencias_transferencias_id_sucursal_origenTosucursales  transferencias[]      @relation("transferencias_id_sucursal_origenTosucursales")
   usuarios                                                      usuarios[]
+}
+
+model predicciones_cache {
+  id          Int        @id @default(autoincrement())
+  id_sucursal Int        @unique
+  resultado   Json
+  generado_en DateTime   @default(now()) @updatedAt
+  sucursales  sucursales @relation(fields: [id_sucursal], references: [id_sucursal])
 }
 
 model transferencias {

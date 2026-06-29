@@ -4,7 +4,7 @@ import { TransferenciasService } from './transferencias.service';
 export declare class TransferenciasController {
     private readonly transferenciasService;
     constructor(transferenciasService: TransferenciasService);
-    obtenerTodas(): import(".prisma/client").Prisma.PrismaPromise<({
+    obtenerTodas(req: any): import(".prisma/client").Prisma.PrismaPromise<({
         detalle_transferencia: ({
             lotes: ({
                 productos: {
@@ -51,8 +51,8 @@ export declare class TransferenciasController {
         } | null;
     } & {
         estado: string | null;
-        codigo_trz: string;
         id_transferencia: number;
+        codigo_trz: string;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
         id_usuario_envia: number | null;
@@ -107,8 +107,8 @@ export declare class TransferenciasController {
         } | null;
     } & {
         estado: string | null;
-        codigo_trz: string;
         id_transferencia: number;
+        codigo_trz: string;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
         id_usuario_envia: number | null;
@@ -118,8 +118,19 @@ export declare class TransferenciasController {
     }>;
     enviarTransferencia(dto: EnviarTransferenciaDto, req: any): Promise<{
         estado: string | null;
-        codigo_trz: string;
         id_transferencia: number;
+        codigo_trz: string;
+        id_sucursal_origen: number | null;
+        id_sucursal_destino: number | null;
+        id_usuario_envia: number | null;
+        id_usuario_recibe: number | null;
+        fecha_envio: Date | null;
+        fecha_recepcion: Date | null;
+    }>;
+    cancelarTransferencia(id: number): Promise<{
+        estado: string | null;
+        id_transferencia: number;
+        codigo_trz: string;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
         id_usuario_envia: number | null;

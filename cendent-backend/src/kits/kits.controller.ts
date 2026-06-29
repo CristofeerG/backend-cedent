@@ -6,12 +6,14 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ActualizarKitDto } from './dto/actualizar-kit.dto';
 import { CrearKitDto } from './dto/crear-kit.dto';
 import { KitsService } from './kits.service';
 
@@ -46,6 +48,12 @@ export class KitsController {
   @Post()
   crear(@Body() dto: CrearKitDto) {
     return this.kitsService.crear(dto);
+  }
+
+  @ApiOperation({ summary: 'Actualizar nombre y/o detalle de un kit existente' })
+  @Patch(':id')
+  actualizar(@Param('id', ParseIntPipe) id: number, @Body() dto: ActualizarKitDto) {
+    return this.kitsService.actualizar(id, dto);
   }
 
   @ApiOperation({ summary: 'Eliminar un kit y su detalle de materiales' })

@@ -35,6 +35,8 @@ export class ProductosService {
   async obtenerInventario(idSucursal?: number) {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
+    const en30dias = new Date(hoy);
+    en30dias.setDate(en30dias.getDate() + 30);
 
     const productos = await this.prisma.productos.findMany({
       include: {
@@ -54,6 +56,16 @@ export class ProductosService {
         (suma, lote) => suma + Number(lote.stock_actual),
         0,
       ),
+      lotes_proximos_vencer: lotes.filter(
+        (lote) => lote.fecha_venc <= en30dias,
+      ).length,
+      lotes_count: lotes.length,
+      proxima_venc: lotes.length > 0
+        ? lotes
+            .reduce((min, l) => l.fecha_venc.getTime() < min.getTime() ? l.fecha_venc : min, lotes[0].fecha_venc)
+            .toISOString()
+            .slice(0, 10)
+        : null,
     }));
   }
 

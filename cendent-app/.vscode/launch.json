@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "CENDENT (Chrome)",
+      "request": "launch",
+      "type": "dart",
+      "device": "chrome",
+      "program": "lib/main.dart",
+      "flutterMode": "debug"
+    },
+    {
+      "name": "CENDENT (Windows)",
+      "request": "launch",
+      "type": "dart",
+      "device": "windows",
+      "program": "lib/main.dart",
+      "flutterMode": "debug"
+    }
+  ]
+}
