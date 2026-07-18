@@ -332,6 +332,17 @@ class ApiService {
     });
   }
 
+  /// POST /sucursales — solo administrador
+  Future<({bool ok, String? errorMsg})> crearSucursal({
+    required String nomSucursal,
+    String? ubicacion,
+  }) async {
+    return _post('/sucursales', {
+      'nomSucursal': nomSucursal,
+      if (ubicacion != null && ubicacion.isNotEmpty) 'ubicacion': ubicacion,
+    });
+  }
+
   /// GET /sucursales/buscar?nombre=X — búsqueda parcial, insensible a mayúsculas
   Future<List<dynamic>?> buscarSucursal(String nombre) async {
     final encoded = Uri.encodeComponent(nombre);

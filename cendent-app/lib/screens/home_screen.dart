@@ -551,7 +551,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildContentArea() {
     // nav index 6 → Usuarios
     if (_activeNav == 6) {
-      return const UsuariosScreen();
+      return UsuariosScreen(userRol: widget.rol);
     }
 
     // nav index 5 → Analítica Predictiva

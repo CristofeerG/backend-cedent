@@ -15,12 +15,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SucursalesController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
+const roles_guard_1 = require("../auth/guards/roles.guard");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const crear_sucursal_dto_1 = require("./dto/crear-sucursal.dto");
 const sucursales_service_1 = require("./sucursales.service");
 let SucursalesController = class SucursalesController {
     sucursalesService;
     constructor(sucursalesService) {
         this.sucursalesService = sucursalesService;
+    }
+    crear(dto) {
+        return this.sucursalesService.crear(dto);
     }
     buscarPorNombre(nombre) {
         if (!nombre?.trim())
@@ -35,6 +41,17 @@ let SucursalesController = class SucursalesController {
     }
 };
 exports.SucursalesController = SucursalesController;
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Crear una nueva sucursal — solo administrador' }),
+    (0, swagger_1.ApiBearerAuth)(),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
+    (0, common_1.Post)(),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [crear_sucursal_dto_1.CrearSucursalDto]),
+    __metadata("design:returntype", void 0)
+], SucursalesController.prototype, "crear", null);
 __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Buscar sucursales por nombre (búsqueda parcial, insensible a mayúsculas)' }),
     (0, swagger_1.ApiQuery)({ name: 'nombre', required: true, type: String }),

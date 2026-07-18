@@ -1,23 +1,30 @@
+import { CrearSucursalDto } from './dto/crear-sucursal.dto';
 import { SucursalesService } from './sucursales.service';
 export declare class SucursalesController {
     private readonly sucursalesService;
     constructor(sucursalesService: SucursalesService);
-    buscarPorNombre(nombre: string): import(".prisma/client").Prisma.PrismaPromise<{
-        id_sucursal: number;
+    crear(dto: CrearSucursalDto): import(".prisma/client").Prisma.Prisma__sucursalesClient<{
         nom_sucursal: string;
         ubicacion: string | null;
         estado: boolean | null;
+        id_sucursal: number;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs>;
+    buscarPorNombre(nombre: string): import(".prisma/client").Prisma.PrismaPromise<{
+        nom_sucursal: string;
+        ubicacion: string | null;
+        estado: boolean | null;
+        id_sucursal: number;
     }[]>;
     obtenerTodas(): import(".prisma/client").Prisma.PrismaPromise<{
-        id_sucursal: number;
         nom_sucursal: string;
         ubicacion: string | null;
         estado: boolean | null;
+        id_sucursal: number;
     }[]>;
     obtenerPorId(id: number): Promise<{
-        id_sucursal: number;
         nom_sucursal: string;
         ubicacion: string | null;
         estado: boolean | null;
+        id_sucursal: number;
     }>;
 }

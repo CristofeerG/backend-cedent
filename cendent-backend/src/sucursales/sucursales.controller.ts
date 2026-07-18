@@ -1,14 +1,19 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   Param,
   ParseIntPipe,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CrearSucursalDto } from './dto/crear-sucursal.dto';
 import { SucursalesService } from './sucursales.service';
 
 @ApiTags('Sucursales')
@@ -17,6 +22,15 @@ import { SucursalesService } from './sucursales.service';
 @Controller('sucursales')
 export class SucursalesController {
   constructor(private readonly sucursalesService: SucursalesService) {}
+
+  @ApiOperation({ summary: 'Crear una nueva sucursal — solo administrador' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('administrador')
+  @Post()
+  crear(@Body() dto: CrearSucursalDto) {
+    return this.sucursalesService.crear(dto);
+  }
 
   @ApiOperation({ summary: 'Buscar sucursales por nombre (búsqueda parcial, insensible a mayúsculas)' })
   @ApiQuery({ name: 'nombre', required: true, type: String })

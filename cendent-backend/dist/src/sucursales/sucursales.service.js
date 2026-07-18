@@ -36,6 +36,15 @@ let SucursalesService = class SucursalesService {
             orderBy: { nom_sucursal: 'asc' },
         });
     }
+    crear(dto) {
+        return this.prisma.sucursales.create({
+            data: {
+                nom_sucursal: dto.nomSucursal,
+                ubicacion: dto.ubicacion ?? null,
+                estado: dto.estado ?? true,
+            },
+        });
+    }
 };
 exports.SucursalesService = SucursalesService;
 exports.SucursalesService = SucursalesService = __decorate([

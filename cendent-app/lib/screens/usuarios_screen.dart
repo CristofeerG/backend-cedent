@@ -71,7 +71,8 @@ class _URolStyle {
 //  PANTALLA PRINCIPAL
 // =============================================================================
 class UsuariosScreen extends StatefulWidget {
-  const UsuariosScreen({super.key});
+  final String userRol;
+  const UsuariosScreen({super.key, required this.userRol});
 
   @override
   State<UsuariosScreen> createState() => _UsuariosScreenState();
@@ -171,6 +172,18 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     }
   }
 
+  Future<void> _openNuevaSucursal() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: const Color(0x800D1B2A),
+      builder: (_) => const _CrearSucursalDialog(),
+    );
+    if (result == true && mounted) {
+      _api.invalidateCache();
+    }
+  }
+
   void _toast(String msg) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -244,7 +257,10 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _UPageHead(onCreate: _openNuevo),
+                        _UPageHead(
+          onCreate: _openNuevo,
+          onNuevaSucursal: widget.userRol == 'administrador' ? _openNuevaSucursal : null,
+        ),
                         const SizedBox(height: 22),
                         _buildBody(),
                         const SizedBox(height: 8),
@@ -267,7 +283,8 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
 // =============================================================================
 class _UPageHead extends StatelessWidget {
   final VoidCallback onCreate;
-  const _UPageHead({required this.onCreate});
+  final VoidCallback? onNuevaSucursal;
+  const _UPageHead({required this.onCreate, this.onNuevaSucursal});
 
   @override
   Widget build(BuildContext context) {
@@ -297,11 +314,25 @@ class _UPageHead extends StatelessWidget {
             ),
           ],
         ),
-        _UBtn(
-          icon: Icons.person_add_outlined,
-          label: 'Nuevo usuario',
-          kind: _UBtnKind.primary,
-          onTap: onCreate,
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onNuevaSucursal != null) ...[
+              _UBtn(
+                icon: Icons.add_business_outlined,
+                label: 'Nueva sucursal',
+                kind: _UBtnKind.secondary,
+                onTap: onNuevaSucursal,
+              ),
+              const SizedBox(width: 10),
+            ],
+            _UBtn(
+              icon: Icons.person_add_outlined,
+              label: 'Nuevo usuario',
+              kind: _UBtnKind.primary,
+              onTap: onCreate,
+            ),
+          ],
         ),
       ],
     );
@@ -1130,6 +1161,155 @@ class _UEliminarDialogState extends State<_UEliminarDialog> {
                 danger: true,
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+//  CREAR SUCURSAL DIALOG
+// =============================================================================
+class _CrearSucursalDialog extends StatefulWidget {
+  const _CrearSucursalDialog();
+  @override
+  State<_CrearSucursalDialog> createState() => _CrearSucursalDialogState();
+}
+
+class _CrearSucursalDialogState extends State<_CrearSucursalDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _nomCtrl = TextEditingController();
+  final _ubCtrl = TextEditingController();
+  final _api = ApiService();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _nomCtrl.dispose();
+    _ubCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final nom = _nomCtrl.text.trim();
+    final result = await _api.crearSucursal(
+      nomSucursal: nom,
+      ubicacion: _ubCtrl.text.trim().isEmpty ? null : _ubCtrl.text.trim(),
+    );
+    if (!mounted) return;
+    if (result.ok) {
+      Navigator.of(context).pop(true);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: CendentColors.ink,
+          width: 420,
+          duration: const Duration(seconds: 4),
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_circle_outline_rounded,
+                  color: Color(0xFF5FE3C2), size: 18),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  "Sucursal '$nom' creada correctamente",
+                  style: const TextStyle(
+                      fontSize: 13.5, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        ));
+    } else {
+      setState(() {
+        _saving = false;
+        _error = result.errorMsg ?? 'No se pudo crear la sucursal';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Material(
+          color: CendentColors.card,
+          borderRadius: BorderRadius.circular(24),
+          clipBehavior: Clip.antiAlias,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _UDialogHeader(
+                  title: 'Nueva sucursal',
+                  subtitle: 'Complete los datos para registrar la sucursal.',
+                  onClose: () => Navigator.of(context).pop(false),
+                ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(26, 20, 26, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _UFieldLabel('Nombre de sucursal', required: true),
+                        const SizedBox(height: 7),
+                        TextFormField(
+                          controller: _nomCtrl,
+                          enabled: !_saving,
+                          maxLength: 100,
+                          style: const TextStyle(
+                              fontSize: 14, color: CendentColors.ink),
+                          decoration: _inputDeco('Ej: Guayaquil Norte'),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Campo requerido.'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        const _UFieldLabel('Ubicación'),
+                        const SizedBox(height: 7),
+                        TextFormField(
+                          controller: _ubCtrl,
+                          enabled: !_saving,
+                          maxLength: 255,
+                          style: const TextStyle(
+                              fontSize: 14, color: CendentColors.ink),
+                          decoration:
+                              _inputDeco('Ej: Av. Francisco de Orellana, Edif. Torre B'),
+                          validator: (v) => null,
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 12),
+                          _UErrorBanner(message: _error!),
+                        ],
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                ),
+                _UDialogFooter(
+                  onCancel:
+                      _saving ? null : () => Navigator.of(context).pop(false),
+                  onConfirm: _saving ? null : _guardar,
+                  confirmLabel: _saving ? 'Creando…' : 'Crear sucursal',
+                  confirmIcon: _saving ? null : Icons.add_business_outlined,
+                  busy: _saving,
+                ),
+              ],
+            ),
           ),
         ),
       ),
