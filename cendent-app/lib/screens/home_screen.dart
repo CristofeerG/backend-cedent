@@ -83,7 +83,6 @@ const _navInteligencia = [
 ];
 const _navSistema = [
   _NavEntry(Icons.group_outlined, 'Usuarios'),
-  _NavEntry(Icons.settings_outlined, 'Configuración'),
 ];
 
 const double _kSidebarBreakpoint = 1080;
@@ -1542,8 +1541,24 @@ class _ForecastPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final variacion = totalReal > 0 ? ((totalPredicho - totalReal) / totalReal * 100) : 0.0;
-    final varStr = loading ? '…' : '${variacion >= 0 ? '+' : ''}${variacion.toStringAsFixed(1)}%';
-    final varColor = variacion >= 0 ? CendentColors.amber : CendentColors.green;
+    final String varStr;
+    final Color varColor;
+    if (loading) {
+      varStr = '…';
+      varColor = CendentColors.secondary;
+    } else if (totalReal == 0) {
+      varStr = '—';
+      varColor = CendentColors.secondary;
+    } else if (variacion > 999) {
+      varStr = '> 999%';
+      varColor = CendentColors.amber;
+    } else if (variacion < -99) {
+      varStr = '< -99%';
+      varColor = CendentColors.green;
+    } else {
+      varStr = '${variacion >= 0 ? '+' : ''}${variacion.toStringAsFixed(1)}%';
+      varColor = variacion >= 0 ? CendentColors.amber : CendentColors.green;
+    }
 
     return CendentCard(
       padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),

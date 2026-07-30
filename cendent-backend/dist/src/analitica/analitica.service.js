@@ -246,7 +246,10 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
         if (cached) {
             return { ...cached.resultado, generado_en: cached.generado_en };
         }
-        return this.generarYGuardar(idSucursal);
+        setImmediate(() => {
+            this.generarYGuardar(idSucursal).catch(e => this.logger.error(`Background training failed for sucursal ${idSucursal}: ${e.message}`));
+        });
+        return null;
     }
 };
 exports.AnaliticaService = AnaliticaService;

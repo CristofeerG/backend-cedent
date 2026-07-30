@@ -42,23 +42,23 @@ export declare class MovimientosController {
             rol: string;
         } | null;
     } & {
-        cantidad: import("@prisma/client/runtime/library").Decimal;
-        fecha_hora: Date | null;
-        tipo_mov: string | null;
         id_movimiento: number;
         id_usuario: number | null;
         id_lote: number | null;
         id_kit: number | null;
+        cantidad: import("@prisma/client/runtime/library").Decimal;
+        fecha_hora: Date | null;
+        tipo_mov: string | null;
     })[]>;
     despacharKit(dto: DespacharKitDto, req: any): Promise<{
         movimientos: {
-            cantidad: import("@prisma/client/runtime/library").Decimal;
-            fecha_hora: Date | null;
-            tipo_mov: string | null;
             id_movimiento: number;
             id_usuario: number | null;
             id_lote: number | null;
             id_kit: number | null;
+            cantidad: import("@prisma/client/runtime/library").Decimal;
+            fecha_hora: Date | null;
+            tipo_mov: string | null;
         }[];
         lotes_usados: {
             nombre_producto: string;
@@ -69,13 +69,13 @@ export declare class MovimientosController {
     }>;
     consumirProducto(dto: ConsumirProductoDto, req: any): Promise<{
         movimientos: {
-            cantidad: import("@prisma/client/runtime/library").Decimal;
-            fecha_hora: Date | null;
-            tipo_mov: string | null;
             id_movimiento: number;
             id_usuario: number | null;
             id_lote: number | null;
             id_kit: number | null;
+            cantidad: import("@prisma/client/runtime/library").Decimal;
+            fecha_hora: Date | null;
+            tipo_mov: string | null;
         }[];
         lote_usado: {
             num_lote: string | null;

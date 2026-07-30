@@ -250,13 +250,19 @@ export class AnaliticaService {
     return { ...resultado, generado_en: registro.generado_en };
   }
 
-  async predecirDemanda(idSucursal: number): Promise<ResultadoPrediccionDto & { generado_en?: Date }> {
+  async predecirDemanda(idSucursal: number): Promise<(ResultadoPrediccionDto & { generado_en?: Date }) | null> {
     const cached = await this.prisma.predicciones_cache.findUnique({
       where: { id_sucursal: idSucursal },
     });
     if (cached) {
       return { ...(cached.resultado as any), generado_en: cached.generado_en };
     }
-    return this.generarYGuardar(idSucursal);
+    // Sin caché: lanzar entrenamiento en background y responder null inmediatamente
+    setImmediate(() => {
+      this.generarYGuardar(idSucursal).catch(e =>
+        this.logger.error(`Background training failed for sucursal ${idSucursal}: ${e.message}`),
+      );
+    });
+    return null;
   }
 }

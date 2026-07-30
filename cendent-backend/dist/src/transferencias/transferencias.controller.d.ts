@@ -26,8 +26,8 @@ export declare class TransferenciasController {
                 fecha_ingreso: Date | null;
             }) | null;
         } & {
-            cantidad: import("@prisma/client/runtime/library").Decimal;
             id_lote: number | null;
+            cantidad: import("@prisma/client/runtime/library").Decimal;
             id_detalle: number;
             id_transferencia: number | null;
         })[];
@@ -82,8 +82,8 @@ export declare class TransferenciasController {
                 fecha_ingreso: Date | null;
             }) | null;
         } & {
-            cantidad: import("@prisma/client/runtime/library").Decimal;
             id_lote: number | null;
+            cantidad: import("@prisma/client/runtime/library").Decimal;
             id_detalle: number;
             id_transferencia: number | null;
         })[];

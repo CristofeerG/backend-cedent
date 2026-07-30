@@ -18,7 +18,9 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "seed:movimientos": "ts-node --project tsconfig.seed.json prisma/seed-movimientos.ts"
+    "seed:movimientos": "ts-node --project tsconfig.seed.json prisma/seed-movimientos.ts",
+    "seed:consumos": "ts-node --project tsconfig.seed.json prisma/seed-consumos.ts",
+    "generar:cache": "ts-node --project tsconfig.seed.json prisma/generar-cache.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

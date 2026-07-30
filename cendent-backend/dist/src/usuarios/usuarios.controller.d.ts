@@ -12,28 +12,28 @@ export declare class UsuariosController {
     }>;
     obtenerTodos(): Promise<{
         id_usuario: number;
+        id_sucursal: number | null;
         sucursales: {
             nom_sucursal: string;
         } | null;
-        id_sucursal: number | null;
         nom_usuario: string;
         rol: string;
     }[]>;
     obtenerPorId(id: number): Promise<{
         id_usuario: number;
+        id_sucursal: number | null;
         sucursales: {
             nom_sucursal: string;
         } | null;
-        id_sucursal: number | null;
         nom_usuario: string;
         rol: string;
     }>;
     editarUsuario(id: number, dto: EditarUsuarioDto): Promise<{
         id_usuario: number;
+        id_sucursal: number | null;
         sucursales: {
             nom_sucursal: string;
         } | null;
-        id_sucursal: number | null;
         nom_usuario: string;
         rol: string;
     }>;

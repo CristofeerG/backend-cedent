@@ -14,7 +14,7 @@ export declare class AnaliticaService {
     generarYGuardar(idSucursal: number): Promise<ResultadoPrediccionDto & {
         generado_en: Date;
     }>;
-    predecirDemanda(idSucursal: number): Promise<ResultadoPrediccionDto & {
+    predecirDemanda(idSucursal: number): Promise<(ResultadoPrediccionDto & {
         generado_en?: Date;
-    }>;
+    }) | null>;
 }
