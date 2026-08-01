@@ -32,6 +32,9 @@ let LotesController = class LotesController {
     obtenerPorProducto(idProducto) {
         return this.lotesService.obtenerPorProducto(idProducto);
     }
+    darDeBaja(id, req) {
+        return this.lotesService.darDeBaja(id, req.user.id_sucursal);
+    }
     actualizar(id, dto) {
         return this.lotesService.actualizar(id, dto);
     }
@@ -54,6 +57,17 @@ __decorate([
     __metadata("design:paramtypes", [Number]),
     __metadata("design:returntype", void 0)
 ], LotesController.prototype, "obtenerPorProducto", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Dar de baja un lote (requiere stock en 0) — solo administrador' }),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
+    (0, common_1.Patch)(':id/baja'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, Object]),
+    __metadata("design:returntype", void 0)
+], LotesController.prototype, "darDeBaja", null);
 __decorate([
     (0, swagger_1.ApiOperation)({ summary: 'Actualizar stock, costo o fecha de vencimiento de un lote — solo administrador' }),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),

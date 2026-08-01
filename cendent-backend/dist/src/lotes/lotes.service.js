@@ -44,6 +44,21 @@ let LotesService = class LotesService {
             orderBy: { fecha_venc: 'asc' },
         });
     }
+    async darDeBaja(idLote, idSucursal) {
+        const lote = await this.prisma.lotes.findUnique({ where: { id_lote: idLote } });
+        if (!lote)
+            throw new common_1.NotFoundException(`Lote con id ${idLote} no encontrado`);
+        if (lote.id_sucursal !== idSucursal) {
+            throw new common_1.ForbiddenException('No tienes permiso para modificar este lote');
+        }
+        if (Number(lote.stock_actual) > 0) {
+            throw new common_1.ConflictException('El lote tiene stock disponible; retira o ajusta el stock antes de darlo de baja');
+        }
+        return this.prisma.lotes.update({
+            where: { id_lote: idLote },
+            data: { stock_actual: 0 },
+        });
+    }
     async actualizar(idLote, dto) {
         const lote = await this.prisma.lotes.findUnique({ where: { id_lote: idLote } });
         if (!lote)

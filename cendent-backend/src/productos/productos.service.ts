@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { generarCodigoLote } from '../common/codigo-lote.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActualizarProductoDto } from './dto/actualizar-producto.dto';
@@ -43,6 +43,7 @@ export class ProductosService {
         lotes: {
           where: {
             fecha_venc: { gte: hoy },
+            stock_actual: { gt: 0 },
             ...(idSucursal ? { id_sucursal: idSucursal } : {}),
           },
         },
@@ -108,6 +109,28 @@ export class ProductosService {
 
   async eliminar(idProducto: number) {
     await this.obtenerPorId(idProducto);
+
+    const lotesConStock = await this.prisma.lotes.count({
+      where: { id_producto: idProducto, stock_actual: { gt: 0 } },
+    });
+    if (lotesConStock > 0) {
+      throw new ConflictException('El producto tiene lotes con stock activo');
+    }
+
+    const movimientos = await this.prisma.movimientos.count({
+      where: { lotes: { id_producto: idProducto } },
+    });
+    if (movimientos > 0) {
+      throw new ConflictException('El producto tiene historial de movimientos y no puede eliminarse');
+    }
+
+    const enKits = await this.prisma.detalle_kit.count({
+      where: { id_producto: idProducto },
+    });
+    if (enKits > 0) {
+      throw new ConflictException('El producto está asociado a kits activos');
+    }
+
     return this.prisma.productos.delete({ where: { id_producto: idProducto } });
   }
 }

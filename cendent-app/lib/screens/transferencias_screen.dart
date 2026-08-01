@@ -1289,7 +1289,6 @@ class NuevaTransferenciaDialog extends StatefulWidget {
 class _NuevaTransferenciaDialogState
     extends State<NuevaTransferenciaDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _destCtrl = TextEditingController();
   final _searchCtrl = TextEditingController();
   final _api = ApiService();
 
@@ -1298,13 +1297,19 @@ class _NuevaTransferenciaDialogState
   List<_TProdInfo> _results = [];
   bool _showResults = false;
   bool _loadingProds = true;
+  bool _loadingSucs = true;
   bool _saving = false;
   String? _error;
+
+  // Sucursales destino disponibles
+  List<Map<String, dynamic>> _sucursales = [];
+  String? _sucursalNom; // valor seleccionado en el dropdown
 
   @override
   void initState() {
     super.initState();
     _loadProds();
+    _loadSucursales();
   }
 
   Future<void> _loadProds() async {
@@ -1316,9 +1321,22 @@ class _NuevaTransferenciaDialogState
     });
   }
 
+  Future<void> _loadSucursales() async {
+    final raw = await _api.getSucursales();
+    if (!mounted) return;
+    setState(() {
+      _sucursales = (raw ?? [])
+          .cast<Map<String, dynamic>>()
+          .where((s) =>
+              s['estado'] != false &&
+              (s['id_sucursal'] as int?) != widget.idSucursal)
+          .toList();
+      _loadingSucs = false;
+    });
+  }
+
   @override
   void dispose() {
-    _destCtrl.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -1380,7 +1398,7 @@ class _NuevaTransferenciaDialogState
     });
 
     final result = await _api.crearTransferencia(
-      nombreSucursalDestino: _destCtrl.text.trim(),
+      nombreSucursalDestino: _sucursalNom!,
       productos: _draft.map((d) => {
             'nombre_producto': d.nombre,
             'cantidad': d.qty,
@@ -1425,7 +1443,7 @@ class _NuevaTransferenciaDialogState
 
   @override
   Widget build(BuildContext context) {
-    if (_loadingProds) {
+    if (_loadingProds || _loadingSucs) {
       return Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.all(24),
@@ -1511,18 +1529,56 @@ class _NuevaTransferenciaDialogState
                         const _TFieldLabel('Sucursal destino',
                             required: true),
                         const SizedBox(height: 7),
-                        TextFormField(
-                          controller: _destCtrl,
-                          enabled: !_saving,
-                          style: const TextStyle(
-                              fontSize: 14, color: CendentColors.ink),
-                          decoration: _inputDeco(
-                              'p. ej. Norte, Central…'),
-                          validator: (v) =>
-                              (v == null || v.trim().isEmpty)
-                                  ? 'Ingrese el nombre de la sucursal destino.'
-                                  : null,
-                        ),
+                        if (_sucursales.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: CendentColors.card,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                  color: CendentColors.hairline),
+                            ),
+                            child: const Text(
+                              'No hay otras sucursales activas disponibles.',
+                              style: TextStyle(
+                                  fontSize: 14,
+                                  color: CendentColors.secondary),
+                            ),
+                          )
+                        else
+                          DropdownButtonFormField<String>(
+                            value: _sucursalNom,
+                            isExpanded: true,
+                            style: const TextStyle(
+                                fontSize: 14, color: CendentColors.ink),
+                            decoration:
+                                _inputDeco('Seleccione una sucursal…'),
+                            icon: const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: CendentColors.secondary),
+                            dropdownColor: CendentColors.card,
+                            menuMaxHeight: 260,
+                            items: _sucursales.map((s) {
+                              final nom =
+                                  (s['nom_sucursal'] as String?) ?? '';
+                              return DropdownMenuItem<String>(
+                                value: nom,
+                                child: Text(nom,
+                                    style: const TextStyle(
+                                        fontSize: 14,
+                                        color: CendentColors.ink)),
+                              );
+                            }).toList(),
+                            onChanged: _saving
+                                ? null
+                                : (val) =>
+                                    setState(() => _sucursalNom = val),
+                            validator: (v) =>
+                                (v == null || v.isEmpty)
+                                    ? 'Seleccione la sucursal destino.'
+                                    : null,
+                          ),
                         const SizedBox(height: 20),
 
                         // Product picker

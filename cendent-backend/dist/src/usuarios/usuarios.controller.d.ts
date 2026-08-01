@@ -5,37 +5,37 @@ export declare class UsuariosController {
     private readonly usuariosService;
     constructor(usuariosService: UsuariosService);
     crearUsuario(dto: CrearUsuarioDto): Promise<{
-        id_usuario: number;
-        id_sucursal: number | null;
         nom_usuario: string;
         rol: string;
+        id_usuario: number;
+        id_sucursal: number | null;
     }>;
     obtenerTodos(): Promise<{
-        id_usuario: number;
-        id_sucursal: number | null;
+        nom_usuario: string;
+        rol: string;
         sucursales: {
             nom_sucursal: string;
         } | null;
-        nom_usuario: string;
-        rol: string;
+        id_usuario: number;
+        id_sucursal: number | null;
     }[]>;
     obtenerPorId(id: number): Promise<{
-        id_usuario: number;
-        id_sucursal: number | null;
+        nom_usuario: string;
+        rol: string;
         sucursales: {
             nom_sucursal: string;
         } | null;
-        nom_usuario: string;
-        rol: string;
+        id_usuario: number;
+        id_sucursal: number | null;
     }>;
     editarUsuario(id: number, dto: EditarUsuarioDto): Promise<{
-        id_usuario: number;
-        id_sucursal: number | null;
+        nom_usuario: string;
+        rol: string;
         sucursales: {
             nom_sucursal: string;
         } | null;
-        nom_usuario: string;
-        rol: string;
+        id_usuario: number;
+        id_sucursal: number | null;
     }>;
     eliminarUsuario(id: number): Promise<{
         message: string;

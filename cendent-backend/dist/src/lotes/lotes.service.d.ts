@@ -24,6 +24,16 @@ export declare class LotesService {
         fecha_venc: Date;
         fecha_ingreso: Date | null;
     }[]>;
+    darDeBaja(idLote: number, idSucursal: number): Promise<{
+        id_lote: number;
+        id_producto: number | null;
+        id_sucursal: number | null;
+        codigo_lote: string | null;
+        stock_actual: import("@prisma/client/runtime/library").Decimal;
+        costo_unit: import("@prisma/client/runtime/library").Decimal | null;
+        fecha_venc: Date;
+        fecha_ingreso: Date | null;
+    }>;
     actualizar(idLote: number, dto: ActualizarLoteDto): Promise<{
         id_lote: number;
         id_producto: number | null;

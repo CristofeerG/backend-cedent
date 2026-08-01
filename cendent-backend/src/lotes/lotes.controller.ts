@@ -36,6 +36,14 @@ export class LotesController {
     return this.lotesService.obtenerPorProducto(idProducto);
   }
 
+  @ApiOperation({ summary: 'Dar de baja un lote (requiere stock en 0) — solo administrador' })
+  @UseGuards(RolesGuard)
+  @Roles('administrador')
+  @Patch(':id/baja')
+  darDeBaja(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.lotesService.darDeBaja(id, req.user.id_sucursal);
+  }
+
   @ApiOperation({ summary: 'Actualizar stock, costo o fecha de vencimiento de un lote — solo administrador' })
   @UseGuards(RolesGuard)
   @Roles('administrador')

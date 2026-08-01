@@ -234,6 +234,16 @@ class ApiService {
     });
   }
 
+  /// PATCH /lotes/:id/baja — solo administrador
+  Future<({bool ok, String? errorMsg})> darDeBajaLote(int idLote) async {
+    return _patch('/lotes/$idLote/baja', {});
+  }
+
+  /// DELETE /productos/:id — solo administrador
+  Future<({bool ok, String? errorMsg})> eliminarProducto(int idProducto) async {
+    return _delete('/productos/$idProducto');
+  }
+
   /// PATCH /productos/:id — solo administrador
   Future<({bool ok, String? errorMsg})> actualizarProducto({
     required int idProducto,
@@ -341,6 +351,12 @@ class ApiService {
       'nomSucursal': nomSucursal,
       if (ubicacion != null && ubicacion.isNotEmpty) 'ubicacion': ubicacion,
     });
+  }
+
+  /// GET /sucursales — todas las sucursales
+  Future<List<dynamic>?> getSucursales() async {
+    final data = await _get('/sucursales');
+    return data is List ? data : null;
   }
 
   /// GET /sucursales/buscar?nombre=X — búsqueda parcial, insensible a mayúsculas

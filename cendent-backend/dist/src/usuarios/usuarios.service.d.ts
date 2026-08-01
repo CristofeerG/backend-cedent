@@ -5,10 +5,10 @@ export declare class UsuariosService {
     private readonly prisma;
     constructor(prisma: PrismaService);
     crearUsuario(dto: CrearUsuarioDto): Promise<{
-        id_usuario: number;
-        id_sucursal: number | null;
         nom_usuario: string;
         rol: string;
+        id_usuario: number;
+        id_sucursal: number | null;
     }>;
     buscarPorNomUsuario(nomUsuario: string): Promise<({
         sucursales: {
@@ -18,40 +18,40 @@ export declare class UsuariosService {
             estado: boolean | null;
         } | null;
     } & {
-        id_usuario: number;
-        id_sucursal: number | null;
         nom_usuario: string;
         password_hash: string;
         rol: string;
+        id_usuario: number;
+        id_sucursal: number | null;
     }) | null>;
     obtenerTodos(): Promise<{
-        id_usuario: number;
-        id_sucursal: number | null;
+        nom_usuario: string;
+        rol: string;
         sucursales: {
             nom_sucursal: string;
         } | null;
-        nom_usuario: string;
-        rol: string;
+        id_usuario: number;
+        id_sucursal: number | null;
     }[]>;
     editarUsuario(idUsuario: number, dto: EditarUsuarioDto): Promise<{
-        id_usuario: number;
-        id_sucursal: number | null;
+        nom_usuario: string;
+        rol: string;
         sucursales: {
             nom_sucursal: string;
         } | null;
-        nom_usuario: string;
-        rol: string;
+        id_usuario: number;
+        id_sucursal: number | null;
     }>;
     eliminarUsuario(idUsuario: number): Promise<{
         message: string;
     }>;
     obtenerPorId(idUsuario: number): Promise<{
-        id_usuario: number;
-        id_sucursal: number | null;
+        nom_usuario: string;
+        rol: string;
         sucursales: {
             nom_sucursal: string;
         } | null;
-        nom_usuario: string;
-        rol: string;
+        id_usuario: number;
+        id_sucursal: number | null;
     }>;
 }

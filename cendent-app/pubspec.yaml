@@ -36,6 +36,9 @@ dependencies:
   shared_preferences: ^2.3.2
   flutter_svg: ^2.0.10+1
   socket_io_client: ^2.0.3+1
+  pdf: ^3.11.1
+  printing: ^5.13.2
+  file_selector: ^1.0.3
 
 dev_dependencies:
   flutter_test:

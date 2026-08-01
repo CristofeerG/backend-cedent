@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { generarCodigoLote } from '../common/codigo-lote.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActualizarLoteDto } from './dto/actualizar-lote.dto';
@@ -36,6 +36,23 @@ export class LotesService {
     return this.prisma.lotes.findMany({
       where: { id_producto: idProducto },
       orderBy: { fecha_venc: 'asc' },
+    });
+  }
+
+  async darDeBaja(idLote: number, idSucursal: number) {
+    const lote = await this.prisma.lotes.findUnique({ where: { id_lote: idLote } });
+    if (!lote) throw new NotFoundException(`Lote con id ${idLote} no encontrado`);
+    if (lote.id_sucursal !== idSucursal) {
+      throw new ForbiddenException('No tienes permiso para modificar este lote');
+    }
+    if (Number(lote.stock_actual) > 0) {
+      throw new ConflictException(
+        'El lote tiene stock disponible; retira o ajusta el stock antes de darlo de baja',
+      );
+    }
+    return this.prisma.lotes.update({
+      where: { id_lote: idLote },
+      data: { stock_actual: 0 },
     });
   }
 

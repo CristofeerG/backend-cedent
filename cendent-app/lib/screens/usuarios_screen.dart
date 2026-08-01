@@ -737,18 +737,38 @@ class _UNuevoDialogState extends State<_UNuevoDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nomCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
-  final _nomSucCtrl = TextEditingController();
   final _api = ApiService();
   String _rol = 'auxiliar';
   bool _saving = false;
   bool _obscurePass = true;
   String? _error;
 
+  List<Map<String, dynamic>> _sucursales = [];
+  int? _sucursalId;
+  bool _loadingSucs = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSucursales();
+  }
+
+  Future<void> _loadSucursales() async {
+    final raw = await _api.getSucursales();
+    if (!mounted) return;
+    setState(() {
+      _sucursales = (raw ?? [])
+          .cast<Map<String, dynamic>>()
+          .where((s) => s['estado'] != false)
+          .toList();
+      _loadingSucs = false;
+    });
+  }
+
   @override
   void dispose() {
     _nomCtrl.dispose();
     _passCtrl.dispose();
-    _nomSucCtrl.dispose();
     super.dispose();
   }
 
@@ -758,25 +778,11 @@ class _UNuevoDialogState extends State<_UNuevoDialog> {
       _saving = true;
       _error = null;
     });
-    int? idSuc;
-    final nomSuc = _nomSucCtrl.text.trim();
-    if (nomSuc.isNotEmpty) {
-      final matches = await _api.buscarSucursal(nomSuc);
-      if (!mounted) return;
-      if (matches == null || matches.isEmpty) {
-        setState(() {
-          _saving = false;
-          _error = 'No se encontró una sucursal con ese nombre.';
-        });
-        return;
-      }
-      idSuc = matches.first['id_sucursal'] as int?;
-    }
     final result = await _api.crearUsuario(
       nomUsuario: _nomCtrl.text.trim(),
       password: _passCtrl.text,
       rol: _rol,
-      idSucursal: idSuc,
+      idSucursal: _sucursalId,
     );
     if (!mounted) return;
     if (result.ok) {
@@ -868,14 +874,57 @@ class _UNuevoDialogState extends State<_UNuevoDialog> {
                         const SizedBox(height: 16),
                         const _UFieldLabel('Sucursal'),
                         const SizedBox(height: 7),
-                        TextFormField(
-                          controller: _nomSucCtrl,
-                          enabled: !_saving,
-                          style: const TextStyle(
-                              fontSize: 14, color: CendentColors.ink),
-                          decoration: _inputDeco('Ej: El Norte'),
-                          validator: (v) => null,
-                        ),
+                        _loadingSucs
+                            ? const SizedBox(
+                                height: 48,
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: CendentColors.primary),
+                                  ),
+                                ),
+                              )
+                            : DropdownButtonFormField<int?>(
+                                value: _sucursalId,
+                                isExpanded: true,
+                                style: const TextStyle(
+                                    fontSize: 14, color: CendentColors.ink),
+                                decoration:
+                                    _inputDeco('Sin sucursal asignada'),
+                                icon: const Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    color: CendentColors.secondary),
+                                dropdownColor: CendentColors.card,
+                                menuMaxHeight: 260,
+                                items: [
+                                  const DropdownMenuItem<int?>(
+                                    value: null,
+                                    child: Text('Sin sucursal',
+                                        style: TextStyle(
+                                            fontSize: 14,
+                                            color: CendentColors.secondary)),
+                                  ),
+                                  ..._sucursales.map((s) {
+                                    final id = s['id_sucursal'] as int?;
+                                    final nom =
+                                        (s['nom_sucursal'] as String?) ?? '';
+                                    return DropdownMenuItem<int?>(
+                                      value: id,
+                                      child: Text(nom,
+                                          style: const TextStyle(
+                                              fontSize: 14,
+                                              color: CendentColors.ink)),
+                                    );
+                                  }),
+                                ],
+                                onChanged: _saving
+                                    ? null
+                                    : (val) =>
+                                        setState(() => _sucursalId = val),
+                              ),
                         if (_error != null) ...[
                           const SizedBox(height: 12),
                           _UErrorBanner(message: _error!),
@@ -915,27 +964,41 @@ class _UEditarDialogState extends State<_UEditarDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nomCtrl;
   final _passCtrl = TextEditingController();
-  late final TextEditingController _nomSucCtrl;
   final _api = ApiService();
   late String _rol;
   bool _saving = false;
   bool _obscurePass = true;
   String? _error;
 
+  List<Map<String, dynamic>> _sucursales = [];
+  int? _sucursalId;
+  bool _loadingSucs = true;
+
   @override
   void initState() {
     super.initState();
     _nomCtrl = TextEditingController(text: widget.usuario.nomUsuario);
-    _nomSucCtrl = TextEditingController(
-        text: widget.usuario.nomSucursal ?? '');
     _rol = widget.usuario.rol;
+    _sucursalId = widget.usuario.idSucursal;
+    _loadSucursales();
+  }
+
+  Future<void> _loadSucursales() async {
+    final raw = await _api.getSucursales();
+    if (!mounted) return;
+    setState(() {
+      _sucursales = (raw ?? [])
+          .cast<Map<String, dynamic>>()
+          .where((s) => s['estado'] != false)
+          .toList();
+      _loadingSucs = false;
+    });
   }
 
   @override
   void dispose() {
     _nomCtrl.dispose();
     _passCtrl.dispose();
-    _nomSucCtrl.dispose();
     super.dispose();
   }
 
@@ -945,27 +1008,13 @@ class _UEditarDialogState extends State<_UEditarDialog> {
       _saving = true;
       _error = null;
     });
-    int? idSuc;
-    final nomSuc = _nomSucCtrl.text.trim();
-    if (nomSuc.isNotEmpty) {
-      final matches = await _api.buscarSucursal(nomSuc);
-      if (!mounted) return;
-      if (matches == null || matches.isEmpty) {
-        setState(() {
-          _saving = false;
-          _error = 'No se encontró una sucursal con ese nombre.';
-        });
-        return;
-      }
-      idSuc = matches.first['id_sucursal'] as int?;
-    }
     final pass = _passCtrl.text;
     final result = await _api.editarUsuario(
       widget.usuario.id,
       nomUsuario: _nomCtrl.text.trim(),
       password: pass.isNotEmpty ? pass : null,
       rol: _rol,
-      idSucursal: idSuc,
+      idSucursal: _sucursalId,
     );
     if (!mounted) return;
     if (result.ok) {
@@ -1059,14 +1108,57 @@ class _UEditarDialogState extends State<_UEditarDialog> {
                         const SizedBox(height: 16),
                         const _UFieldLabel('Sucursal'),
                         const SizedBox(height: 7),
-                        TextFormField(
-                          controller: _nomSucCtrl,
-                          enabled: !_saving,
-                          style: const TextStyle(
-                              fontSize: 14, color: CendentColors.ink),
-                          decoration: _inputDeco('Ej: El Norte'),
-                          validator: (v) => null,
-                        ),
+                        _loadingSucs
+                            ? const SizedBox(
+                                height: 48,
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: CendentColors.primary),
+                                  ),
+                                ),
+                              )
+                            : DropdownButtonFormField<int?>(
+                                value: _sucursalId,
+                                isExpanded: true,
+                                style: const TextStyle(
+                                    fontSize: 14, color: CendentColors.ink),
+                                decoration:
+                                    _inputDeco('Sin sucursal asignada'),
+                                icon: const Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    color: CendentColors.secondary),
+                                dropdownColor: CendentColors.card,
+                                menuMaxHeight: 260,
+                                items: [
+                                  const DropdownMenuItem<int?>(
+                                    value: null,
+                                    child: Text('Sin sucursal',
+                                        style: TextStyle(
+                                            fontSize: 14,
+                                            color: CendentColors.secondary)),
+                                  ),
+                                  ..._sucursales.map((s) {
+                                    final id = s['id_sucursal'] as int?;
+                                    final nom =
+                                        (s['nom_sucursal'] as String?) ?? '';
+                                    return DropdownMenuItem<int?>(
+                                      value: id,
+                                      child: Text(nom,
+                                          style: const TextStyle(
+                                              fontSize: 14,
+                                              color: CendentColors.ink)),
+                                    );
+                                  }),
+                                ],
+                                onChanged: _saving
+                                    ? null
+                                    : (val) =>
+                                        setState(() => _sucursalId = val),
+                              ),
                         if (_error != null) ...[
                           const SizedBox(height: 12),
                           _UErrorBanner(message: _error!),

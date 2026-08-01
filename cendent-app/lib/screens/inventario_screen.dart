@@ -4,9 +4,14 @@
 // =============================================================================
 
 import 'dart:async';
+import 'dart:io' show File;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:file_selector/file_selector.dart';
+import 'package:printing/printing.dart';
 import '../services/api_service.dart';
 import '../utils/cendent_colors.dart';
+import '../utils/inventario_pdf.dart';
 
 // =============================================================================
 //  ENUMS DE DOMINIO
@@ -412,6 +417,87 @@ class _InventarioScreenState extends State<InventarioScreen> {
     }
   }
 
+  Future<void> _exportarPdf() async {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Generando PDF…'),
+        duration: Duration(seconds: 2),
+        backgroundColor: CendentColors.primary,
+      ),
+    );
+
+    // Fetch lots in parallel for products that have active lots
+    final conLotes = _products.where((p) => p.lotes > 0).toList();
+
+    final lotesRaw = await Future.wait(
+      conLotes.map((p) => _api.getLotesProducto(p.idProducto)),
+    );
+
+    if (!mounted) return;
+
+    // Map each product with its filtered lots
+    final Map<int, List<dynamic>> lotesPorProducto = {};
+    for (int i = 0; i < conLotes.length; i++) {
+      final raw = lotesRaw[i];
+      if (raw == null) continue;
+      lotesPorProducto[conLotes[i].idProducto] = raw
+          .where((l) =>
+              l['id_sucursal'] == widget.idSucursal &&
+              _toDouble(l['stock_actual']) > 0)
+          .toList();
+    }
+
+    // Build PdfProducto list for all products (even those without lots)
+    final pdfProductos = _products.map((p) {
+      final rawLotes = lotesPorProducto[p.idProducto] ?? [];
+      return PdfProducto(
+        nombre: p.rawNombre,
+        sku: p.sku,
+        stockTotal: p.stock,
+        stockMin: p.rawStockMin,
+        lotes: rawLotes.map((l) {
+          return PdfLote(
+            codigo: (l['codigo_lote'] as String?) ?? '-',
+            stock: _toDouble(l['stock_actual']).round(),
+            vencimiento: _fmtDate(l['fecha_venc'] as String?).replaceAll('—', '-'),
+          );
+        }).toList(),
+      );
+    }).toList();
+
+    final doc = generarInventarioPdf(
+      nomSucursal: widget.nomSucursal,
+      productos: pdfProductos,
+      fechaGeneracion: DateTime.now(),
+    );
+
+    final nombre = 'inventario_${widget.nomSucursal.toLowerCase().replaceAll(' ', '_')}.pdf';
+
+    if (kIsWeb) {
+      // En web el navegador muestra el diálogo de impresión/guardar
+      await Printing.layoutPdf(onLayout: (_) => doc.save(), name: nombre);
+    } else {
+      // En desktop: diálogo nativo "Guardar como"
+      final location = await getSaveLocation(
+        suggestedName: nombre,
+        acceptedTypeGroups: [const XTypeGroup(label: 'PDF', extensions: ['pdf'])],
+      );
+      if (location == null || !mounted) return;
+      final bytes = await doc.save();
+      await File(location.path).writeAsBytes(bytes);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('PDF guardado en ${location.path}'),
+          backgroundColor: CendentColors.green,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -455,7 +541,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _PageHead(onAdd: _openAgregarProducto, onExport: () {}),
+                        _PageHead(onAdd: _openAgregarProducto, onExport: _exportarPdf),
                         const SizedBox(height: 20),
                         _Toolbar(
                           controller: _searchCtrl,
@@ -479,6 +565,7 @@ class _InventarioScreenState extends State<InventarioScreen> {
                           onRowTap: _openDetail,
                           onAgregarLoteTap: _openAgregarLote,
                           onEditarProductoTap: (p) { _api.invalidateCache(); _loadData(); },
+                          onEliminarProductoTap: (p) { _api.invalidateCache(); _loadData(); },
                           perPage: _perPage,
                           onPerPageChanged: (v) => setState(() { _perPage = v; _currentPage = 1; }),
                           currentPage: _currentPage,
@@ -971,6 +1058,7 @@ class _InventoryTableCard extends StatelessWidget {
   final ValueChanged<Product> onRowTap;
   final ValueChanged<Product> onAgregarLoteTap;
   final ValueChanged<Product> onEditarProductoTap;
+  final ValueChanged<Product> onEliminarProductoTap;
   final int perPage;
   final ValueChanged<int> onPerPageChanged;
   final int currentPage;
@@ -982,6 +1070,7 @@ class _InventoryTableCard extends StatelessWidget {
     required this.onRowTap,
     required this.onAgregarLoteTap,
     required this.onEditarProductoTap,
+    required this.onEliminarProductoTap,
     required this.perPage,
     required this.onPerPageChanged,
     required this.currentPage,
@@ -1013,7 +1102,8 @@ class _InventoryTableCard extends StatelessWidget {
                 scrollDirection: Axis.horizontal,
                 child: SizedBox(
                   width: tableW,
-                  child: _InventoryTable(products: pageItems, selected: selected, onRowTap: onRowTap, onAgregarLoteTap: onAgregarLoteTap, onEditarProductoTap: onEditarProductoTap),
+                  child: _InventoryTable(products: pageItems, selected: selected, onRowTap: onRowTap, onAgregarLoteTap: onAgregarLoteTap, onEditarProductoTap: onEditarProductoTap, onEliminarProductoTap: onEliminarProductoTap),
+
                 ),
               );
             },
@@ -1037,7 +1127,8 @@ class _InventoryTable extends StatelessWidget {
   final ValueChanged<Product> onRowTap;
   final ValueChanged<Product> onAgregarLoteTap;
   final ValueChanged<Product> onEditarProductoTap;
-  const _InventoryTable({required this.products, required this.selected, required this.onRowTap, required this.onAgregarLoteTap, required this.onEditarProductoTap});
+  final ValueChanged<Product> onEliminarProductoTap;
+  const _InventoryTable({required this.products, required this.selected, required this.onRowTap, required this.onAgregarLoteTap, required this.onEditarProductoTap, required this.onEliminarProductoTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1057,7 +1148,7 @@ class _InventoryTable extends StatelessWidget {
               _HeaderCell('Lotes activos',     flex: 100),
               _HeaderCell('Próx. vencimiento', flex: 130),
               _HeaderCell('Estado',            flex: 120),
-              _HeaderCell('Acciones',          flex: 150),
+              _HeaderCell('Acciones',          flex: 190),
             ],
           ),
         ),
@@ -1076,6 +1167,7 @@ class _InventoryTable extends StatelessWidget {
               onTap: () => onRowTap(p),
               onAgregarLote: () => onAgregarLoteTap(p),
               onEditarProducto: () => onEditarProductoTap(p),
+              onEliminarProducto: () => onEliminarProductoTap(p),
             );
           }),
       ],
@@ -1108,13 +1200,15 @@ class _InventoryRow extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback onAgregarLote;
   final VoidCallback onEditarProducto;
-  const _InventoryRow({required this.product, required this.isSelected, required this.isLast, required this.onTap, required this.onAgregarLote, required this.onEditarProducto});
+  final VoidCallback onEliminarProducto;
+  const _InventoryRow({required this.product, required this.isSelected, required this.isLast, required this.onTap, required this.onAgregarLote, required this.onEditarProducto, required this.onEliminarProducto});
   @override
   State<_InventoryRow> createState() => _InventoryRowState();
 }
 
 class _InventoryRowState extends State<_InventoryRow> {
   bool _hover = false;
+  final _api = ApiService();
 
   Future<void> _openEditarProducto() async {
     final guardado = await showDialog<bool>(
@@ -1125,6 +1219,44 @@ class _InventoryRowState extends State<_InventoryRow> {
     );
     if (guardado == true && mounted) {
       widget.onEditarProducto();
+    }
+  }
+
+  Future<void> _openEliminarProducto() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      barrierColor: const Color(0x6B0D1B2A),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Eliminar producto',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: CendentColors.ink)),
+        content: Text('¿Eliminar "${widget.product.name}"? Esta acción no se puede deshacer.',
+            style: const TextStyle(fontSize: 14, color: CendentColors.secondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: CendentColors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    final (:ok, :errorMsg) = await _api.eliminarProducto(widget.product.idProducto);
+    if (!mounted) return;
+    if (ok) {
+      widget.onEliminarProducto();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMsg ?? 'No se pudo eliminar el producto'),
+          backgroundColor: CendentColors.red,
+        ),
+      );
     }
   }
 
@@ -1193,12 +1325,13 @@ class _InventoryRowState extends State<_InventoryRow> {
                     ),
                   )),
                   _Cell(flex: 120, child: Align(alignment: Alignment.centerLeft, child: _StatusChip(style: st))),
-                  _Cell(flex: 150, child: Row(
+                  _Cell(flex: 190, child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _RowAction(icon: Icons.visibility_outlined,        tooltip: 'Ver detalle',  onTap: widget.onTap),
-                      _RowAction(icon: Icons.edit_outlined,              tooltip: 'Editar',       onTap: () => _openEditarProducto()),
-                      _RowAction(icon: Icons.add_circle_outline_rounded, tooltip: 'Agregar lote', onTap: widget.onAgregarLote),
+                      _RowAction(icon: Icons.visibility_outlined,        tooltip: 'Ver detalle',     onTap: widget.onTap),
+                      _RowAction(icon: Icons.edit_outlined,              tooltip: 'Editar',          onTap: () => _openEditarProducto()),
+                      _RowAction(icon: Icons.add_circle_outline_rounded, tooltip: 'Agregar lote',    onTap: widget.onAgregarLote),
+                      _RowAction(icon: Icons.delete_outline_rounded,     tooltip: 'Eliminar',        onTap: () => _openEliminarProducto(), danger: true),
                     ],
                   )),
                 ],
@@ -1286,7 +1419,8 @@ class _RowAction extends StatefulWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
-  const _RowAction({required this.icon, required this.tooltip, required this.onTap});
+  final bool danger;
+  const _RowAction({required this.icon, required this.tooltip, required this.onTap, this.danger = false});
   @override
   State<_RowAction> createState() => _RowActionState();
 }
@@ -1295,6 +1429,8 @@ class _RowActionState extends State<_RowAction> {
   bool _hover = false;
   @override
   Widget build(BuildContext context) {
+    final hoverBg    = widget.danger ? CendentColors.redSoft  : CendentColors.blueTint;
+    final hoverColor = widget.danger ? CendentColors.red      : CendentColors.primary;
     return Tooltip(
       message: widget.tooltip,
       child: MouseRegion(
@@ -1307,10 +1443,10 @@ class _RowActionState extends State<_RowAction> {
             width: 32, height: 32,
             margin: const EdgeInsets.only(right: 4),
             decoration: BoxDecoration(
-              color: _hover ? CendentColors.blueTint : Colors.transparent,
+              color: _hover ? hoverBg : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(widget.icon, size: 16, color: _hover ? CendentColors.primary : CendentColors.secondary),
+            child: Icon(widget.icon, size: 16, color: _hover ? hoverColor : CendentColors.secondary),
           ),
         ),
       ),
@@ -2194,6 +2330,46 @@ class _LoteDetailPanelState extends State<LoteDetailPanel> {
     }
   }
 
+  Future<void> _openDarDeBajaLote(Lote lote) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      barrierColor: const Color(0x6B0D1B2A),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Dar de baja este lote',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: CendentColors.ink)),
+        content: const Text('¿Dar de baja este lote? Esta acción no se puede deshacer.',
+            style: TextStyle(fontSize: 14, color: CendentColors.secondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: CendentColors.red),
+            child: const Text('Dar de baja'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    final (:ok, :errorMsg) = await _api.darDeBajaLote(lote.idLote);
+    if (!mounted) return;
+    if (ok) {
+      _api.invalidateCache();
+      _loadDetail();
+      widget.onLoteActualizado?.call();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMsg ?? 'No se pudo dar de baja el lote'),
+          backgroundColor: CendentColors.red,
+        ),
+      );
+    }
+  }
+
   Future<void> _loadDetail() async {
     setState(() { _loading = true; _error = false; });
 
@@ -2213,7 +2389,7 @@ class _LoteDetailPanelState extends State<LoteDetailPanel> {
     }
 
     setState(() {
-      _lotes   = rawLotes.map(_mapLote).toList();
+      _lotes   = rawLotes.map(_mapLote).where((l) => l.stock > 0).toList();
       _movs    = (rawMovs ?? []).map(_mapMov).toList();
       _loading = false;
     });
@@ -2300,7 +2476,7 @@ class _LoteDetailPanelState extends State<LoteDetailPanel> {
                               if (_lotes.isEmpty)
                                 _EmptyLotes()
                               else
-                                ..._lotes.map((l) => _LoteCard(lote: l, onEdit: () => _openEditarLote(l))),
+                                ..._lotes.map((l) => _LoteCard(lote: l, onEdit: () => _openEditarLote(l), onBaja: () => _openDarDeBajaLote(l))),
                               const SizedBox(height: 26),
                               const _SectionTitle('Movimientos recientes', trailing: 'últimos 10'),
                               const SizedBox(height: 4),
@@ -3079,7 +3255,8 @@ class _AgregarProductoDialogState extends State<_AgregarProductoDialog> {
 class _LoteCard extends StatelessWidget {
   final Lote lote;
   final VoidCallback? onEdit;
-  const _LoteCard({required this.lote, this.onEdit});
+  final VoidCallback? onBaja;
+  const _LoteCard({required this.lote, this.onEdit, this.onBaja});
 
   ({String label, Color fg, Color bg}) get _pill {
     switch (lote.state) {
@@ -3122,6 +3299,10 @@ class _LoteCard extends StatelessWidget {
               if (onEdit != null) ...[
                 const SizedBox(width: 6),
                 _LoteEditBtn(onTap: onEdit!),
+              ],
+              if (onBaja != null) ...[
+                const SizedBox(width: 4),
+                _LoteBajaBtn(onTap: onBaja!),
               ],
             ],
           ),
@@ -3167,6 +3348,39 @@ class _LoteEditBtnState extends State<_LoteEditBtn> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(Icons.edit_outlined, size: 14, color: _hover ? CendentColors.primary : CendentColors.secondary),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoteBajaBtn extends StatefulWidget {
+  final VoidCallback onTap;
+  const _LoteBajaBtn({required this.onTap});
+  @override
+  State<_LoteBajaBtn> createState() => _LoteBajaBtnState();
+}
+
+class _LoteBajaBtnState extends State<_LoteBajaBtn> {
+  bool _hover = false;
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Tooltip(
+          message: 'Dar de baja',
+          child: Container(
+            width: 28, height: 28,
+            decoration: BoxDecoration(
+              color: _hover ? CendentColors.redSoft : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(Icons.block_outlined, size: 14, color: _hover ? CendentColors.red : CendentColors.secondary),
           ),
         ),
       ),

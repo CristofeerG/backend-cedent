@@ -81,7 +81,23 @@ export class UsuariosService {
       where: { id_usuario: idUsuario },
     });
     if (!usuario) throw new NotFoundException(`Usuario ${idUsuario} no encontrado`);
-    await this.prisma.usuarios.delete({ where: { id_usuario: idUsuario } });
+
+    await this.prisma.$transaction([
+      this.prisma.movimientos.updateMany({
+        where: { id_usuario: idUsuario },
+        data: { id_usuario: null },
+      }),
+      this.prisma.transferencias.updateMany({
+        where: { id_usuario_envia: idUsuario },
+        data: { id_usuario_envia: null },
+      }),
+      this.prisma.transferencias.updateMany({
+        where: { id_usuario_recibe: idUsuario },
+        data: { id_usuario_recibe: null },
+      }),
+      this.prisma.usuarios.delete({ where: { id_usuario: idUsuario } }),
+    ]);
+
     return { message: `Usuario ${idUsuario} eliminado` };
   }
 
