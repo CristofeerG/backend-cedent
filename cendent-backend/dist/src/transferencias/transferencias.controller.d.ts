@@ -51,14 +51,14 @@ export declare class TransferenciasController {
         } | null;
     } & {
         estado: string | null;
+        id_usuario_envia: number | null;
         codigo_trz: string;
+        fecha_envio: Date | null;
+        fecha_recepcion: Date | null;
         id_transferencia: number;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
-        id_usuario_envia: number | null;
         id_usuario_recibe: number | null;
-        fecha_envio: Date | null;
-        fecha_recepcion: Date | null;
     })[]>;
     obtenerPorId(id: number): Promise<{
         detalle_transferencia: ({
@@ -107,36 +107,36 @@ export declare class TransferenciasController {
         } | null;
     } & {
         estado: string | null;
+        id_usuario_envia: number | null;
         codigo_trz: string;
+        fecha_envio: Date | null;
+        fecha_recepcion: Date | null;
         id_transferencia: number;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
-        id_usuario_envia: number | null;
         id_usuario_recibe: number | null;
-        fecha_envio: Date | null;
-        fecha_recepcion: Date | null;
     }>;
     enviarTransferencia(dto: EnviarTransferenciaDto, req: any): Promise<{
         estado: string | null;
+        id_usuario_envia: number | null;
         codigo_trz: string;
+        fecha_envio: Date | null;
+        fecha_recepcion: Date | null;
         id_transferencia: number;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
-        id_usuario_envia: number | null;
         id_usuario_recibe: number | null;
-        fecha_envio: Date | null;
-        fecha_recepcion: Date | null;
     }>;
     cancelarTransferencia(id: number): Promise<{
         estado: string | null;
+        id_usuario_envia: number | null;
         codigo_trz: string;
+        fecha_envio: Date | null;
+        fecha_recepcion: Date | null;
         id_transferencia: number;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
-        id_usuario_envia: number | null;
         id_usuario_recibe: number | null;
-        fecha_envio: Date | null;
-        fecha_recepcion: Date | null;
     }>;
     recibirTransferencia(dto: RecibirTransferenciaDto, req: any): Promise<{
         mensaje: string;

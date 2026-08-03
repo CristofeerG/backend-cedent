@@ -1,4 +1,5 @@
 import { CrearSucursalDto } from './dto/crear-sucursal.dto';
+import { EditarSucursalDto } from './dto/editar-sucursal.dto';
 import { SucursalesService } from './sucursales.service';
 export declare class SucursalesController {
     private readonly sucursalesService;
@@ -26,5 +27,14 @@ export declare class SucursalesController {
         nom_sucursal: string;
         ubicacion: string | null;
         estado: boolean | null;
+    }>;
+    actualizar(id: number, dto: EditarSucursalDto): Promise<{
+        id_sucursal: number;
+        nom_sucursal: string;
+        ubicacion: string | null;
+        estado: boolean | null;
+    }>;
+    eliminar(id: number): Promise<{
+        message: string;
     }>;
 }

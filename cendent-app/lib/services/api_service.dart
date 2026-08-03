@@ -359,6 +359,23 @@ class ApiService {
     return data is List ? data : null;
   }
 
+  /// PATCH /sucursales/:id — editar nombre o ubicación
+  Future<({bool ok, String? errorMsg})> actualizarSucursal(
+    int id, {
+    String? nomSucursal,
+    String? ubicacion,
+  }) async {
+    return _patch('/sucursales/$id', {
+      if (nomSucursal != null) 'nomSucursal': nomSucursal,
+      if (ubicacion != null) 'ubicacion': ubicacion,
+    });
+  }
+
+  /// DELETE /sucursales/:id — desactiva (soft delete)
+  Future<({bool ok, String? errorMsg})> eliminarSucursal(int id) async {
+    return _delete('/sucursales/$id');
+  }
+
   /// GET /sucursales/buscar?nombre=X — búsqueda parcial, insensible a mayúsculas
   Future<List<dynamic>?> buscarSucursal(String nombre) async {
     final encoded = Uri.encodeComponent(nombre);
@@ -406,6 +423,16 @@ class ApiService {
   /// DELETE /usuarios/:id — eliminar usuario
   Future<({bool ok, String? errorMsg})> eliminarUsuario(int id) async {
     return _delete('/usuarios/$id');
+  }
+
+  /// POST /notificaciones/revisar — dispara chequeo inmediato; el backend emite por Socket.IO
+  Future<void> revisarNotificaciones() async {
+    try {
+      await http.post(
+        Uri.parse('$_base/notificaciones/revisar'),
+        headers: await _headers(),
+      ).timeout(const Duration(seconds: 10));
+    } catch (_) {}
   }
 
   /// GET /analitica/prediccion/:idSucursal — sirve desde caché; sin espera larga

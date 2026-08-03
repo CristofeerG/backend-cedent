@@ -41,6 +41,26 @@ _UUsuario _uMap(dynamic raw) => _UUsuario(
     );
 
 // =============================================================================
+//  MODELO SUCURSAL
+// =============================================================================
+class _SSucursal {
+  final int id;
+  final String nomSucursal;
+  final String? ubicacion;
+  const _SSucursal({
+    required this.id,
+    required this.nomSucursal,
+    this.ubicacion,
+  });
+}
+
+_SSucursal _sMap(Map<String, dynamic> raw) => _SSucursal(
+      id: (raw['id_sucursal'] as int?) ?? 0,
+      nomSucursal: (raw['nom_sucursal'] as String?) ?? '',
+      ubicacion: raw['ubicacion'] as String?,
+    );
+
+// =============================================================================
 //  ROL STYLES
 // =============================================================================
 class _URolStyle {
@@ -83,6 +103,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
   bool _loading = true;
   String? _loadError;
   List<_UUsuario> _usuarios = [];
+  List<_SSucursal> _sucursales = [];
   String _search = '';
   String? _filtroRol;
 
@@ -97,17 +118,24 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
       _loading = true;
       _loadError = null;
     });
-    final raw = await _api.getUsuarios();
+    final results = await Future.wait([
+      _api.getUsuarios(),
+      _api.getSucursales(),
+    ]);
     if (!mounted) return;
-    if (raw == null) {
-      setState(() {
-        _loading = false;
-        _loadError = 'No se pudo cargar la lista de usuarios. Reintente.';
-      });
-      return;
-    }
+    final rawU = results[0];
+    final rawS = results[1];
     setState(() {
-      _usuarios = raw.map<_UUsuario>(_uMap).toList();
+      if (rawU == null) {
+        _loadError = 'No se pudo cargar la lista de usuarios. Reintente.';
+      } else {
+        _usuarios = rawU.map<_UUsuario>(_uMap).toList();
+      }
+      _sucursales = (rawS ?? [])
+          .cast<Map<String, dynamic>>()
+          .where((s) => s['estado'] != false)
+          .map<_SSucursal>(_sMap)
+          .toList();
       _loading = false;
     });
   }
@@ -181,6 +209,36 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     );
     if (result == true && mounted) {
       _api.invalidateCache();
+      await _load();
+      _toast('Sucursal creada correctamente');
+    }
+  }
+
+  Future<void> _openEditarSucursal(_SSucursal s) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: const Color(0x800D1B2A),
+      builder: (_) => _SEditarDialog(sucursal: s),
+    );
+    if (ok == true && mounted) {
+      _api.invalidateCache();
+      await _load();
+      _toast('Sucursal actualizada');
+    }
+  }
+
+  Future<void> _openEliminarSucursal(_SSucursal s) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: const Color(0x800D1B2A),
+      builder: (_) => _SEliminarDialog(sucursal: s),
+    );
+    if (ok == true && mounted) {
+      _api.invalidateCache();
+      await _load();
+      _toast('Sucursal eliminada');
     }
   }
 
@@ -209,33 +267,56 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
 
   Widget _buildBody() {
     if (_loading) return const _USkeleton();
-    if (_loadError != null) {
-      return _UErrorState(message: _loadError!, onRetry: _load);
-    }
-    if (_usuarios.isEmpty) {
-      return _UEmptyState(onCreate: _openNuevo);
-    }
     final visible = _visible;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _UToolbar(
-          onSearch: (s) => setState(() => _search = s),
-          filtroRol: _filtroRol,
-          onFiltro: (r) => setState(() => _filtroRol = r),
-          total: _usuarios.length,
-          admins: _countRol('administrador'),
-          auxiliares: _countRol('auxiliar'),
-          doctores: _countRol('doctor'),
+        // ── Sección Usuarios ──────────────────────────────────────────────────
+        _SSectionHeader(
+          icon: Icons.group_outlined,
+          title: 'Usuarios',
+          count: _usuarios.length,
         ),
         const SizedBox(height: 18),
-        if (visible.isEmpty)
-          const _UEmptyFiltered()
+        if (_loadError != null)
+          _UErrorState(message: _loadError!, onRetry: _load)
+        else if (_usuarios.isEmpty)
+          _UEmptyState(onCreate: _openNuevo)
+        else ...[
+          _UToolbar(
+            onSearch: (s) => setState(() => _search = s),
+            filtroRol: _filtroRol,
+            onFiltro: (r) => setState(() => _filtroRol = r),
+            total: _usuarios.length,
+            admins: _countRol('administrador'),
+            auxiliares: _countRol('auxiliar'),
+            doctores: _countRol('doctor'),
+          ),
+          const SizedBox(height: 14),
+          if (visible.isEmpty)
+            const _UEmptyFiltered()
+          else
+            _UTable(
+              usuarios: visible,
+              onEditar: _openEditar,
+              onEliminar: _openEliminar,
+            ),
+        ],
+        // ── Sección Sucursales ────────────────────────────────────────────────
+        const SizedBox(height: 36),
+        _SSectionHeader(
+          icon: Icons.apartment_rounded,
+          title: 'Sucursales',
+          count: _sucursales.length,
+        ),
+        const SizedBox(height: 18),
+        if (_sucursales.isEmpty)
+          _SSucursalesEmpty(onCrear: _openNuevaSucursal)
         else
-          _UTable(
-            usuarios: visible,
-            onEditar: _openEditar,
-            onEliminar: _openEliminar,
+          _STable(
+            sucursales: _sucursales,
+            onEditar: _openEditarSucursal,
+            onEliminar: _openEliminarSucursal,
           ),
       ],
     );
@@ -299,7 +380,7 @@ class _UPageHead extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Usuarios',
+              'Usuarios y Sucursales',
               style: TextStyle(
                 fontSize: 25,
                 fontWeight: FontWeight.w700,
@@ -309,7 +390,7 @@ class _UPageHead extends StatelessWidget {
             ),
             SizedBox(height: 4),
             Text(
-              'Gestión de cuentas y roles del sistema',
+              'Gestión de cuentas, roles y sucursales del sistema',
               style: TextStyle(fontSize: 14, color: CendentColors.secondary),
             ),
           ],
@@ -1402,6 +1483,494 @@ class _CrearSucursalDialogState extends State<_CrearSucursalDialog> {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+//  SUCURSALES — SECTION HEADER
+// =============================================================================
+class _SSectionHeader extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final int count;
+  const _SSectionHeader({
+    required this.icon,
+    required this.title,
+    required this.count,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 22,
+          decoration: BoxDecoration(
+            color: CendentColors.primary,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Icon(icon, size: 20, color: CendentColors.primary),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+            color: CendentColors.ink,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: CendentColors.blueTint,
+            borderRadius: BorderRadius.circular(9999),
+          ),
+          child: Text(
+            '$count',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: CendentColors.primary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+//  SUCURSALES — EMPTY STATE
+// =============================================================================
+class _SSucursalesEmpty extends StatelessWidget {
+  final VoidCallback onCrear;
+  const _SSucursalesEmpty({required this.onCrear});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: CendentColors.blueTint,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: const Icon(Icons.apartment_rounded,
+                  size: 28, color: CendentColors.primary),
+            ),
+            const SizedBox(height: 14),
+            const Text('Sin sucursales registradas',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: CendentColors.ink)),
+            const SizedBox(height: 5),
+            const Text('Crea la primera sucursal del sistema.',
+                style: TextStyle(
+                    fontSize: 13.5, color: CendentColors.secondary)),
+            const SizedBox(height: 18),
+            _UBtn(
+              icon: Icons.add_business_outlined,
+              label: 'Nueva sucursal',
+              kind: _UBtnKind.primary,
+              onTap: onCrear,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+//  SUCURSALES — TABLE
+// =============================================================================
+class _STable extends StatelessWidget {
+  final List<_SSucursal> sucursales;
+  final ValueChanged<_SSucursal> onEditar;
+  final ValueChanged<_SSucursal> onEliminar;
+  const _STable({
+    required this.sucursales,
+    required this.onEditar,
+    required this.onEliminar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: CendentColors.card,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: CendentColors.hairline),
+        boxShadow: CendentColors.cardShadow,
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 600),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Table(
+              columnWidths: const {
+                0: FixedColumnWidth(60),  // ID
+                1: FlexColumnWidth(2),    // SUCURSAL
+                2: FlexColumnWidth(3),    // UBICACIÓN
+                3: FixedColumnWidth(100), // ACCIONES
+              },
+              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+              children: [
+                TableRow(
+                  decoration: const BoxDecoration(
+                    border: Border(
+                        bottom: BorderSide(color: CendentColors.hairline)),
+                  ),
+                  children: [
+                    _sth('ID'),
+                    _sth('Sucursal'),
+                    _sth('Ubicación'),
+                    _sth(''),
+                  ],
+                ),
+                ...sucursales.asMap().entries.map((e) {
+                  final s = e.value;
+                  final isLast = e.key == sucursales.length - 1;
+                  return TableRow(
+                    decoration: BoxDecoration(
+                      border: isLast
+                          ? null
+                          : const Border(
+                              bottom: BorderSide(
+                                  color: CendentColors.hairlineSoft)),
+                    ),
+                    children: [
+                      _std(Text(
+                        '#${s.id}',
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            fontFamily: 'monospace',
+                            color: CendentColors.secondary),
+                      )),
+                      _std(Row(
+                        children: [
+                          Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: CendentColors.blueTint,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            alignment: Alignment.center,
+                            child: const Icon(Icons.apartment_rounded,
+                                size: 16, color: CendentColors.primary),
+                          ),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: Text(
+                              s.nomSucursal,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: CendentColors.ink),
+                            ),
+                          ),
+                        ],
+                      )),
+                      _std(s.ubicacion != null && s.ubicacion!.isNotEmpty
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.location_on_outlined,
+                                    size: 13,
+                                    color: CendentColors.secondary),
+                                const SizedBox(width: 5),
+                                Flexible(
+                                  child: Text(
+                                    s.ubicacion!,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w500,
+                                        color: CendentColors.ink),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : const Text('-',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: CendentColors.secondary))),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 10),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _UActBtn(
+                              icon: Icons.edit_outlined,
+                              tooltip: 'Editar',
+                              onTap: () => onEditar(s),
+                            ),
+                            _UActBtn(
+                              icon: Icons.delete_outline_rounded,
+                              tooltip: 'Eliminar',
+                              danger: true,
+                              onTap: () => onEliminar(s),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sth(String text) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+        child: Text(
+          text.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.6,
+            color: CendentColors.secondary,
+          ),
+        ),
+      );
+
+  Widget _std(Widget child) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: child,
+      );
+}
+
+// =============================================================================
+//  EDITAR SUCURSAL DIALOG
+// =============================================================================
+class _SEditarDialog extends StatefulWidget {
+  final _SSucursal sucursal;
+  const _SEditarDialog({required this.sucursal});
+  @override
+  State<_SEditarDialog> createState() => _SEditarDialogState();
+}
+
+class _SEditarDialogState extends State<_SEditarDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nomCtrl;
+  late final TextEditingController _ubCtrl;
+  final _api = ApiService();
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _nomCtrl = TextEditingController(text: widget.sucursal.nomSucursal);
+    _ubCtrl = TextEditingController(text: widget.sucursal.ubicacion ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nomCtrl.dispose();
+    _ubCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final result = await _api.actualizarSucursal(
+      widget.sucursal.id,
+      nomSucursal: _nomCtrl.text.trim(),
+      ubicacion: _ubCtrl.text.trim().isEmpty ? '' : _ubCtrl.text.trim(),
+    );
+    if (!mounted) return;
+    if (result.ok) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() {
+        _saving = false;
+        _error = result.errorMsg ?? 'No se pudo actualizar la sucursal';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Material(
+          color: CendentColors.card,
+          borderRadius: BorderRadius.circular(24),
+          clipBehavior: Clip.antiAlias,
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _UDialogHeader(
+                  title: 'Editar sucursal',
+                  subtitle:
+                      'Modifica los datos de "${widget.sucursal.nomSucursal}".',
+                  onClose: () => Navigator.of(context).pop(false),
+                ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(26, 20, 26, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _UFieldLabel('Nombre de sucursal', required: true),
+                        const SizedBox(height: 7),
+                        TextFormField(
+                          controller: _nomCtrl,
+                          enabled: !_saving,
+                          maxLength: 100,
+                          style: const TextStyle(
+                              fontSize: 14, color: CendentColors.ink),
+                          decoration: _inputDeco('Ej: Guayaquil Norte'),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Campo requerido.'
+                              : null,
+                        ),
+                        const SizedBox(height: 16),
+                        const _UFieldLabel('Ubicación'),
+                        const SizedBox(height: 7),
+                        TextFormField(
+                          controller: _ubCtrl,
+                          enabled: !_saving,
+                          maxLength: 255,
+                          style: const TextStyle(
+                              fontSize: 14, color: CendentColors.ink),
+                          decoration: _inputDeco(
+                              'Ej: Av. Francisco de Orellana, Edif. Torre B'),
+                          validator: (v) => null,
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 12),
+                          _UErrorBanner(message: _error!),
+                        ],
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                ),
+                _UDialogFooter(
+                  onCancel:
+                      _saving ? null : () => Navigator.of(context).pop(false),
+                  onConfirm: _saving ? null : _guardar,
+                  confirmLabel: _saving ? 'Guardando…' : 'Guardar cambios',
+                  confirmIcon: _saving ? null : Icons.save_outlined,
+                  busy: _saving,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+//  ELIMINAR SUCURSAL DIALOG
+// =============================================================================
+class _SEliminarDialog extends StatefulWidget {
+  final _SSucursal sucursal;
+  const _SEliminarDialog({required this.sucursal});
+  @override
+  State<_SEliminarDialog> createState() => _SEliminarDialogState();
+}
+
+class _SEliminarDialogState extends State<_SEliminarDialog> {
+  final _api = ApiService();
+  bool _deleting = false;
+  String? _error;
+
+  Future<void> _eliminar() async {
+    setState(() {
+      _deleting = true;
+      _error = null;
+    });
+    final result = await _api.eliminarSucursal(widget.sucursal.id);
+    if (!mounted) return;
+    if (result.ok) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() {
+        _deleting = false;
+        _error = result.errorMsg ?? 'No se pudo eliminar la sucursal';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Material(
+          color: CendentColors.card,
+          borderRadius: BorderRadius.circular(24),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _UDialogHeader(
+                title: 'Eliminar sucursal',
+                subtitle:
+                    'Se desactivará "${widget.sucursal.nomSucursal}". El historial de lotes y transferencias se preserva.',
+                onClose: () => Navigator.of(context).pop(false),
+              ),
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(26, 16, 26, 0),
+                  child: _UErrorBanner(message: _error!),
+                ),
+              _UDialogFooter(
+                onCancel:
+                    _deleting ? null : () => Navigator.of(context).pop(false),
+                onConfirm: _deleting ? null : _eliminar,
+                confirmLabel: _deleting ? 'Eliminando…' : 'Confirmar',
+                confirmIcon: Icons.delete_outline_rounded,
+                busy: _deleting,
+                danger: true,
+              ),
+            ],
           ),
         ),
       ),

@@ -1,5 +1,6 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearSucursalDto } from './dto/crear-sucursal.dto';
+import { EditarSucursalDto } from './dto/editar-sucursal.dto';
 export declare class SucursalesService {
     private readonly prisma;
     constructor(prisma: PrismaService);
@@ -27,4 +28,13 @@ export declare class SucursalesService {
         ubicacion: string | null;
         estado: boolean | null;
     }, never, import("@prisma/client/runtime/library").DefaultArgs>;
+    actualizar(id: number, dto: EditarSucursalDto): Promise<{
+        id_sucursal: number;
+        nom_sucursal: string;
+        ubicacion: string | null;
+        estado: boolean | null;
+    }>;
+    eliminar(id: number): Promise<{
+        message: string;
+    }>;
 }

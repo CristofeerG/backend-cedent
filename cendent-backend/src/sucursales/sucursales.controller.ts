@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -14,6 +16,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CrearSucursalDto } from './dto/crear-sucursal.dto';
+import { EditarSucursalDto } from './dto/editar-sucursal.dto';
 import { SucursalesService } from './sucursales.service';
 
 @ApiTags('Sucursales')
@@ -50,5 +53,21 @@ export class SucursalesController {
   @Get(':id')
   obtenerPorId(@Param('id', ParseIntPipe) id: number) {
     return this.sucursalesService.obtenerPorId(id);
+  }
+
+  @ApiOperation({ summary: 'Editar nombre o ubicación de una sucursal — solo administrador' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('administrador')
+  @Patch(':id')
+  actualizar(@Param('id', ParseIntPipe) id: number, @Body() dto: EditarSucursalDto) {
+    return this.sucursalesService.actualizar(id, dto);
+  }
+
+  @ApiOperation({ summary: 'Desactivar (eliminar) una sucursal — solo administrador' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('administrador')
+  @Delete(':id')
+  eliminar(@Param('id', ParseIntPipe) id: number) {
+    return this.sucursalesService.eliminar(id);
   }
 }

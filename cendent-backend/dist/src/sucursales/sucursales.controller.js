@@ -19,6 +19,7 @@ const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 const roles_guard_1 = require("../auth/guards/roles.guard");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const crear_sucursal_dto_1 = require("./dto/crear-sucursal.dto");
+const editar_sucursal_dto_1 = require("./dto/editar-sucursal.dto");
 const sucursales_service_1 = require("./sucursales.service");
 let SucursalesController = class SucursalesController {
     sucursalesService;
@@ -38,6 +39,12 @@ let SucursalesController = class SucursalesController {
     }
     obtenerPorId(id) {
         return this.sucursalesService.obtenerPorId(id);
+    }
+    actualizar(id, dto) {
+        return this.sucursalesService.actualizar(id, dto);
+    }
+    eliminar(id) {
+        return this.sucursalesService.eliminar(id);
     }
 };
 exports.SucursalesController = SucursalesController;
@@ -76,6 +83,27 @@ __decorate([
     __metadata("design:paramtypes", [Number]),
     __metadata("design:returntype", void 0)
 ], SucursalesController.prototype, "obtenerPorId", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Editar nombre o ubicación de una sucursal — solo administrador' }),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
+    (0, common_1.Patch)(':id'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number, editar_sucursal_dto_1.EditarSucursalDto]),
+    __metadata("design:returntype", void 0)
+], SucursalesController.prototype, "actualizar", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({ summary: 'Desactivar (eliminar) una sucursal — solo administrador' }),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)('administrador'),
+    (0, common_1.Delete)(':id'),
+    __param(0, (0, common_1.Param)('id', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], SucursalesController.prototype, "eliminar", null);
 exports.SucursalesController = SucursalesController = __decorate([
     (0, swagger_1.ApiTags)('Sucursales'),
     (0, swagger_1.ApiBearerAuth)(),

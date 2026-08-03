@@ -198,7 +198,9 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     });
-    SocketService().conectar(token);
+    SocketService().conectar(token, onConnected: () {
+      _api.revisarNotificaciones();
+    });
   }
 
   Future<void> _loadData() async {
@@ -696,6 +698,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       notificaciones: _notificaciones,
                       noLeidas: _noLeidas,
                       onLeer: () => setState(() => _noLeidas = 0),
+                      onStockTap: () => setState(() {
+                        _filtroEstadoInicialInventario = StockState.bajoMinimo;
+                        _activeNav = 1;
+                      }),
+                      onVencimientoTap: () => setState(() {
+                        _filtroEstadoInicialInventario = StockState.porVencer;
+                        _activeNav = 1;
+                      }),
                     ),
                     Expanded(child: _buildContentArea()),
                   ],
@@ -893,6 +903,8 @@ class _TopBar extends StatelessWidget {
   final List<Notificacion> notificaciones;
   final int noLeidas;
   final VoidCallback onLeer;
+  final VoidCallback? onStockTap;
+  final VoidCallback? onVencimientoTap;
   const _TopBar({
     required this.showMenuButton,
     required this.nomUsuario,
@@ -901,6 +913,8 @@ class _TopBar extends StatelessWidget {
     required this.notificaciones,
     required this.noLeidas,
     required this.onLeer,
+    this.onStockTap,
+    this.onVencimientoTap,
   });
 
   @override
@@ -952,7 +966,13 @@ class _TopBar extends StatelessWidget {
             _LivePill(),
             const SizedBox(width: 18),
           ],
-          _NotifButton(notificaciones: notificaciones, noLeidas: noLeidas, onLeer: onLeer),
+          _NotifButton(
+            notificaciones: notificaciones,
+            noLeidas: noLeidas,
+            onLeer: onLeer,
+            onStockTap: onStockTap,
+            onVencimientoTap: onVencimientoTap,
+          ),
           const SizedBox(width: 18),
           Container(
             padding: const EdgeInsets.only(left: 18),
@@ -2090,20 +2110,19 @@ class _DashboardSkeleton extends StatelessWidget {
   }
 }
 
-String _formatHora(DateTime dt) {
-  final h = dt.hour.toString().padLeft(2, '0');
-  final m = dt.minute.toString().padLeft(2, '0');
-  return '$h:$m';
-}
 
 class _NotifButton extends StatefulWidget {
   final List<Notificacion> notificaciones;
   final int noLeidas;
   final VoidCallback onLeer;
+  final VoidCallback? onStockTap;
+  final VoidCallback? onVencimientoTap;
   const _NotifButton({
     required this.notificaciones,
     required this.noLeidas,
     required this.onLeer,
+    this.onStockTap,
+    this.onVencimientoTap,
   });
   @override
   State<_NotifButton> createState() => _NotifButtonState();
@@ -2129,6 +2148,8 @@ class _NotifButtonState extends State<_NotifButton> {
         link: _link,
         notificaciones: widget.notificaciones,
         onClose: _close,
+        onStockTap: widget.onStockTap,
+        onVencimientoTap: widget.onVencimientoTap,
       ),
     );
     Overlay.of(context).insert(_entry!);
@@ -2162,6 +2183,11 @@ class _NotifButtonState extends State<_NotifButton> {
   Widget build(BuildContext context) {
     final open = _entry != null;
     final hasUnread = widget.noLeidas > 0;
+    // Badge muestra grupos distintos (stock, vencimiento), no items individuales.
+    final groupCount = [
+      if (widget.notificaciones.any((n) => n.tipo == 'stock')) 1,
+      if (widget.notificaciones.any((n) => n.tipo == 'vencimiento')) 1,
+    ].fold(0, (a, b) => a + b);
     return CompositedTransformTarget(
       link: _link,
       child: MouseRegion(
@@ -2207,14 +2233,11 @@ class _NotifButtonState extends State<_NotifButton> {
                     decoration: BoxDecoration(
                       color: CendentColors.red,
                       borderRadius: BorderRadius.circular(9999),
-                      border:
-                          Border.all(color: CendentColors.card, width: 2),
+                      border: Border.all(color: CendentColors.card, width: 2),
                     ),
                     alignment: Alignment.center,
                     child: Text(
-                      widget.noLeidas > 99
-                          ? '99+'
-                          : '${widget.noLeidas}',
+                      '$groupCount',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,
@@ -2235,192 +2258,222 @@ class _NotifPanel extends StatelessWidget {
   final LayerLink link;
   final List<Notificacion> notificaciones;
   final VoidCallback onClose;
+  final VoidCallback? onStockTap;
+  final VoidCallback? onVencimientoTap;
   const _NotifPanel({
     required this.link,
     required this.notificaciones,
     required this.onClose,
+    this.onStockTap,
+    this.onVencimientoTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Muestra más recientes primero.
-    final items = notificaciones.reversed.toList();
+    final stockCount = notificaciones.where((n) => n.tipo == 'stock').length;
+    final vencCount  = notificaciones.where((n) => n.tipo == 'vencimiento').length;
+    final hasAlerts  = stockCount > 0 || vencCount > 0;
+    final groupCount = (stockCount > 0 ? 1 : 0) + (vencCount > 0 ? 1 : 0);
+
     return Positioned.fill(
       child: Stack(
         children: [
-        // Fondo transparente para cerrar al hacer clic fuera.
-        GestureDetector(
-          onTap: onClose,
-          behavior: HitTestBehavior.opaque,
-          child: const SizedBox.expand(),
-        ),
-        CompositedTransformFollower(
-          link: link,
-          showWhenUnlinked: false,
-          // Panel de 320px; se alinea con el borde derecho del botón (42px).
-          offset: const Offset(-278, 48),
-          child: Align(
-            alignment: Alignment.topLeft,
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                width: 320,
-                constraints: const BoxConstraints(maxHeight: 420),
-                decoration: BoxDecoration(
-                  color: CendentColors.card,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: CendentColors.hairline),
-                  boxShadow: CendentColors.popShadow,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-                      child: Row(
-                        children: [
-                          const Text(
-                            'Notificaciones',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: CendentColors.ink,
-                            ),
-                          ),
-                          const Spacer(),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: items.isEmpty
-                                  ? CendentColors.greenSoft
-                                  : CendentColors.redSoft,
-                              borderRadius: BorderRadius.circular(9999),
-                            ),
-                            child: Text(
-                              items.isEmpty ? 'Sin alertas' : '${items.length}',
+          GestureDetector(
+            onTap: onClose,
+            behavior: HitTestBehavior.opaque,
+            child: const SizedBox.expand(),
+          ),
+          CompositedTransformFollower(
+            link: link,
+            showWhenUnlinked: false,
+            offset: const Offset(-278, 48),
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  width: 320,
+                  decoration: BoxDecoration(
+                    color: CendentColors.card,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: CendentColors.hairline),
+                    boxShadow: CendentColors.popShadow,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+                        child: Row(
+                          children: [
+                            const Text(
+                              'Notificaciones',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w700,
-                                color: items.isEmpty
-                                    ? CendentColors.green
-                                    : CendentColors.red,
+                                color: CendentColors.ink,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1, color: CendentColors.hairline),
-                    if (items.isEmpty)
-                      const Padding(
-                        padding:
-                            EdgeInsets.symmetric(vertical: 32, horizontal: 18),
-                        child: Column(
-                          children: [
-                            Icon(Icons.check_circle_outline_rounded,
-                                size: 32, color: CendentColors.green),
-                            SizedBox(height: 10),
-                            Text(
-                              'Todo en orden. Sin alertas recientes.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                  fontSize: 13, color: CendentColors.secondary),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: hasAlerts
+                                    ? CendentColors.redSoft
+                                    : CendentColors.greenSoft,
+                                borderRadius: BorderRadius.circular(9999),
+                              ),
+                              child: Text(
+                                hasAlerts ? '$groupCount alerta${groupCount == 1 ? '' : 's'}' : 'Sin alertas',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: hasAlerts
+                                      ? CendentColors.red
+                                      : CendentColors.green,
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                      )
-                    else
-                      Flexible(
-                        child: ListView.separated(
-                          shrinkWrap: true,
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          itemCount: items.length,
-                          separatorBuilder: (_, __) => const Divider(
-                              height: 1,
-                              color: CendentColors.hairlineSoft),
-                          itemBuilder: (_, i) =>
-                              _NotifTile(notif: items[i]),
-                        ),
                       ),
-                  ],
+                      const Divider(height: 1, color: CendentColors.hairline),
+                      if (!hasAlerts)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(
+                              vertical: 32, horizontal: 18),
+                          child: Column(
+                            children: [
+                              Icon(Icons.check_circle_outline_rounded,
+                                  size: 32, color: CendentColors.green),
+                              SizedBox(height: 10),
+                              Text(
+                                'Todo en orden. Sin alertas recientes.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    color: CendentColors.secondary),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (stockCount > 0) ...[
+                              _NotifGroupTile(
+                                tipo: 'stock',
+                                count: stockCount,
+                                onTap: () { onClose(); onStockTap?.call(); },
+                              ),
+                              if (vencCount > 0)
+                                const Divider(
+                                    height: 1,
+                                    color: CendentColors.hairlineSoft),
+                            ],
+                            if (vencCount > 0)
+                              _NotifGroupTile(
+                                tipo: 'vencimiento',
+                                count: vencCount,
+                                onTap: () { onClose(); onVencimientoTap?.call(); },
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
       ),
     );
   }
 }
 
-class _NotifTile extends StatelessWidget {
-  final Notificacion notif;
-  const _NotifTile({required this.notif});
+class _NotifGroupTile extends StatefulWidget {
+  final String tipo;
+  final int count;
+  final VoidCallback? onTap;
+  const _NotifGroupTile({
+    required this.tipo,
+    required this.count,
+    this.onTap,
+  });
+  @override
+  State<_NotifGroupTile> createState() => _NotifGroupTileState();
+}
+
+class _NotifGroupTileState extends State<_NotifGroupTile> {
+  bool _hover = false;
 
   @override
   Widget build(BuildContext context) {
-    final style = _notifStyle(notif.tipo);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: style.color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child:
-                Icon(style.icon, size: 18, color: style.color),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+    final style = _notifStyle(widget.tipo);
+    final isStock = widget.tipo == 'stock';
+    final title = isStock ? 'Stock bajo mínimo' : 'Lotes próximos a vencer';
+    final n = widget.count;
+    final subtitle = isStock
+        ? '$n producto${n == 1 ? '' : 's'} ${n == 1 ? 'requiere' : 'requieren'} reposición'
+        : '$n lote${n == 1 ? '' : 's'} ${n == 1 ? 'vence' : 'vencen'} pronto';
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          color: _hover ? CendentColors.bg : Colors.transparent,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: style.color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(style.icon, size: 18, color: style.color),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        notif.titulo,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: CendentColors.ink,
-                        ),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: CendentColors.ink,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(height: 2),
                     Text(
-                      _formatHora(notif.fecha),
+                      subtitle,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: CendentColors.secondary,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  notif.mensaje,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: CendentColors.secondary,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: _hover ? CendentColors.primary : CendentColors.secondary,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

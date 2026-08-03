@@ -37,7 +37,7 @@ class SocketService {
   Stream<Notificacion> get stream => _controller.stream;
 
   // ── Conexión ───────────────────────────────────────────────────────────────
-  void conectar(String token) {
+  void conectar(String token, {void Function()? onConnected}) {
     desconectar(); // cierra conexión previa si la hay
     _socket = sio.io(
       'http://localhost:3000',
@@ -51,6 +51,9 @@ class SocketService {
           .build(),
     );
     _socket!.connect();
+    if (onConnected != null) {
+      _socket!.onConnect((_) => onConnected());
+    }
     _socket!.on('alerta_caducidad', _onCaducidad);
     _socket!.on('alerta_stock', _onStock);
   }

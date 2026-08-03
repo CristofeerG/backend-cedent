@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearSucursalDto } from './dto/crear-sucursal.dto';
+import { EditarSucursalDto } from './dto/editar-sucursal.dto';
 
 @Injectable()
 export class SucursalesService {
@@ -36,5 +37,24 @@ export class SucursalesService {
         estado: dto.estado ?? true,
       },
     });
+  }
+
+  async actualizar(id: number, dto: EditarSucursalDto) {
+    const suc = await this.prisma.sucursales.findUnique({ where: { id_sucursal: id } });
+    if (!suc) throw new NotFoundException(`Sucursal ${id} no encontrada`);
+    const data: Record<string, unknown> = {};
+    if (dto.nomSucursal !== undefined) data.nom_sucursal = dto.nomSucursal;
+    if (dto.ubicacion !== undefined) data.ubicacion = dto.ubicacion || null;
+    return this.prisma.sucursales.update({ where: { id_sucursal: id }, data });
+  }
+
+  async eliminar(id: number) {
+    const suc = await this.prisma.sucursales.findUnique({ where: { id_sucursal: id } });
+    if (!suc) throw new NotFoundException(`Sucursal ${id} no encontrada`);
+    await this.prisma.sucursales.update({
+      where: { id_sucursal: id },
+      data: { estado: false },
+    });
+    return { message: `Sucursal ${id} eliminada` };
   }
 }

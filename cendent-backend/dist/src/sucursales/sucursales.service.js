@@ -45,6 +45,27 @@ let SucursalesService = class SucursalesService {
             },
         });
     }
+    async actualizar(id, dto) {
+        const suc = await this.prisma.sucursales.findUnique({ where: { id_sucursal: id } });
+        if (!suc)
+            throw new common_1.NotFoundException(`Sucursal ${id} no encontrada`);
+        const data = {};
+        if (dto.nomSucursal !== undefined)
+            data.nom_sucursal = dto.nomSucursal;
+        if (dto.ubicacion !== undefined)
+            data.ubicacion = dto.ubicacion || null;
+        return this.prisma.sucursales.update({ where: { id_sucursal: id }, data });
+    }
+    async eliminar(id) {
+        const suc = await this.prisma.sucursales.findUnique({ where: { id_sucursal: id } });
+        if (!suc)
+            throw new common_1.NotFoundException(`Sucursal ${id} no encontrada`);
+        await this.prisma.sucursales.update({
+            where: { id_sucursal: id },
+            data: { estado: false },
+        });
+        return { message: `Sucursal ${id} eliminada` };
+    }
 };
 exports.SucursalesService = SucursalesService;
 exports.SucursalesService = SucursalesService = __decorate([
