@@ -79,7 +79,7 @@ class _URolStyle {
             CendentColors.violet, CendentColors.violetSoft, 'Auxiliar');
       case 'doctor':
         return const _URolStyle(
-            CendentColors.teal, CendentColors.tealSoft, 'Doctor');
+            CendentColors.teal, CendentColors.tealSoft, 'Médico');
       default:
         return const _URolStyle(
             CendentColors.secondary, Color(0xFFEAEFF4), 'Desconocido');
@@ -503,7 +503,7 @@ class _UToolbar extends StatelessWidget {
           bg: CendentColors.violetSoft,
         ),
         _UFilterChip(
-          label: 'Doctores',
+          label: 'Médicos',
           count: doctores,
           active: filtroRol == 'doctor',
           onTap: () => onFiltro('doctor'),
@@ -2016,7 +2016,7 @@ class _URolSelector extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         _URolOption(
-          label: 'Doctor',
+          label: 'Médico',
           icon: Icons.medical_services_outlined,
           selected: value == 'doctor',
           enabled: enabled,
@@ -2574,7 +2574,7 @@ class _UFooter extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(32, 22, 32, 24),
       child: const Column(
         children: [
-          Text("Daniel's CENDENT S.A.  ·  Centro de Especialidades Odontológicas",
+          Text("Daniel's CEDENT S.A.  ·  Centro de Especialidades Odontológicas",
               textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: 12,

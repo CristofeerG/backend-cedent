@@ -1036,7 +1036,7 @@ class _InvFooter extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(32, 22, 32, 24),
       child: const Column(
         children: [
-          Text("Daniel's CENDENT S.A.  ·  Centro de Especialidades Odontológicas",
+          Text("Daniel's CEDENT S.A.  ·  Centro de Especialidades Odontológicas",
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, color: CendentColors.secondary, fontWeight: FontWeight.w500)),
           SizedBox(height: 4),

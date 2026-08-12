@@ -1,6 +1,5 @@
 // =============================================================================
 //  lib/screens/home_screen.dart — Dashboard CENDENT
-//  Datos reales desde la API. Paleta azul · Material 3 · responsive.
 // =============================================================================
 
 import 'dart:async';
@@ -802,7 +801,7 @@ class _Sidebar extends StatelessWidget {
                 const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('CENDENT', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: CendentColors.ink, letterSpacing: -0.2)),
+                    Text('CEDENT', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: CendentColors.ink, letterSpacing: -0.2)),
                     Text('Gestión de Inventario', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: CendentColors.secondary)),
                   ],
                 ),
@@ -2520,7 +2519,7 @@ class _Footer extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(32, 22, 32, 24),
       child: const Column(
         children: [
-          Text("Daniel's CENDENT S.A.  ·  Centro de Especialidades Odontológicas", textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: CendentColors.secondary, fontWeight: FontWeight.w500)),
+          Text("Daniel's CEDENT S.A.  ·  Centro de Especialidades Odontológicas", textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: CendentColors.secondary, fontWeight: FontWeight.w500)),
           SizedBox(height: 4),
           Text('© 2026 — Todos los derechos reservados', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: CendentColors.secondary)),
         ],

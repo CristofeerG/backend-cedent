@@ -1545,7 +1545,7 @@ class _Footer extends StatelessWidget {
       child: const Column(
         children: [
           Text(
-            "Daniel's CENDENT S.A.  ·  Centro de Especialidades Odontológicas",
+            "Daniel's CEDENT S.A.  ·  Centro de Especialidades Odontológicas",
             textAlign: TextAlign.center,
             style: TextStyle(
                 fontSize: 12,

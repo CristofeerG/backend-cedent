@@ -299,7 +299,7 @@ class _LoginScreenState extends State<LoginScreen> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
-            "Daniel's CENDENT S.A.  ·  Centro de Especialidades Odontológicas",
+            "Daniel's CEDENT S.A.  ·  Centro de Especialidades Odontológicas",
             style: TextStyle(fontSize: 12, color: Color(0xFF9E9E9E)),
             textAlign: TextAlign.center,
           ),
