@@ -74,8 +74,8 @@ function agruparPorFecha(egresos) {
 }
 function suavizar(serie) {
     return serie.map((_, i) => {
-        const inicio = Math.max(0, i - 2);
-        const fin = Math.min(serie.length - 1, i + 2);
+        const inicio = Math.max(0, i - 1);
+        const fin = Math.min(serie.length - 1, i + 1);
         const v = serie.slice(inicio, fin + 1);
         return v.reduce((s, x) => s + x, 0) / v.length;
     });
@@ -144,38 +144,38 @@ async function generarYGuardarSucursal(idSucursal, nomSucursal) {
         procesados++;
         const nombre = nombreProducto.get(idProducto) ?? `producto_${idProducto}`;
         process.stdout.write(`  [${procesados}/${candidatos.length}] ${nombre.slice(0, 50).padEnd(50)} ...`);
-        const mapaFecha = mapaConsumos.get(idProducto);
-        const serie = Array.from(mapaFecha.keys()).sort().map(f => mapaFecha.get(f));
-        const max = Math.max(...serie);
-        const serieNorm = serie.map(v => v / max);
-        const { red, smooth } = entrenarLSTM(serieNorm);
-        const forecastNorm = red.forecast(smooth, HORIZONTE_DIAS);
-        const consumo30d = Math.round(forecastNorm.reduce((s, v) => s + v * max, 0) * 100) / 100;
-        const stockTotal = stockMapa.get(idProducto) ?? 0;
-        const promDiario = consumo30d / HORIZONTE_DIAS;
-        const diasQuiebre = stockTotal === 0 ? 0 : promDiario > 0 ? Math.floor(stockTotal / promDiario) : 9999;
-        const sugerencia = Math.max(0, Math.round((consumo30d - stockTotal) * 100) / 100);
-        predicciones.push({
-            id_producto: idProducto,
-            nombre_mat: nombre,
-            stock_total: Math.round(stockTotal * 100) / 100,
-            consumo_predicho_30_dias: consumo30d,
-            dias_para_quiebre: diasQuiebre,
-            sugerencia_compra: sugerencia,
+        try {
+            const mapaFecha = mapaConsumos.get(idProducto);
+            const serie = Array.from(mapaFecha.keys()).sort().map(f => mapaFecha.get(f));
+            const max = Math.max(...serie);
+            const serieNorm = serie.map(v => v / max);
+            const { red, smooth } = entrenarLSTM(serieNorm);
+            const forecastNorm = red.forecast(smooth, HORIZONTE_DIAS);
+            const consumo30d = Math.round(forecastNorm.reduce((s, v) => s + v * max, 0) * 100) / 100;
+            const stockTotal = stockMapa.get(idProducto) ?? 0;
+            const promDiario = consumo30d / HORIZONTE_DIAS;
+            const diasQuiebre = stockTotal === 0 ? 0 : promDiario > 0 ? Math.floor(stockTotal / promDiario) : 9999;
+            const sugerencia = Math.max(0, Math.round((consumo30d - stockTotal) * 100) / 100);
+            predicciones.push({
+                id_producto: idProducto,
+                nombre_mat: nombre,
+                stock_total: Math.round(stockTotal * 100) / 100,
+                consumo_predicho_30_dias: consumo30d,
+                dias_para_quiebre: diasQuiebre,
+                sugerencia_compra: sugerencia,
+            });
+            process.stdout.write(' OK\n');
+        }
+        catch (err) {
+            process.stdout.write(` ERROR: ${err?.message ?? err}\n`);
+        }
+        const parcial = [...predicciones].sort((a, b) => a.dias_para_quiebre - b.dias_para_quiebre);
+        await prisma.predicciones_cache.upsert({
+            where: { id_sucursal: idSucursal },
+            create: { id_sucursal: idSucursal, resultado: { id_sucursal: idSucursal, total_productos_analizados: parcial.length, predicciones: parcial } },
+            update: { resultado: { id_sucursal: idSucursal, total_productos_analizados: parcial.length, predicciones: parcial } },
         });
-        process.stdout.write(' OK\n');
     }
-    predicciones.sort((a, b) => a.dias_para_quiebre - b.dias_para_quiebre);
-    const resultado = {
-        id_sucursal: idSucursal,
-        total_productos_analizados: predicciones.length,
-        predicciones,
-    };
-    await prisma.predicciones_cache.upsert({
-        where: { id_sucursal: idSucursal },
-        create: { id_sucursal: idSucursal, resultado: resultado },
-        update: { resultado: resultado },
-    });
     console.log(`[${nomSucursal}] Caché guardada (${predicciones.length} producto(s)).`);
     return predicciones.length;
 }

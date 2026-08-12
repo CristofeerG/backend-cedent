@@ -10,6 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TransferenciasService = void 0;
+exports.generarCodigoTrz = generarCodigoTrz;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 function generarCodigoTrz() {
@@ -67,6 +68,9 @@ let TransferenciasService = class TransferenciasService {
                 throw new common_1.NotFoundException(`Sucursal destino no encontrada: "${dto.nombre_sucursal_destino}"`);
             }
             const idSucursalDestino = sucursalDestino.id_sucursal;
+            if (idSucursalDestino === idSucursalOrigen) {
+                throw new common_1.BadRequestException('No se puede transferir a la misma sucursal de origen');
+            }
             const descontesPorProducto = [];
             for (const item of dto.productos) {
                 const producto = await tx.productos.findFirst({

@@ -20,7 +20,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed:movimientos": "ts-node --project tsconfig.seed.json prisma/seed-movimientos.ts",
     "seed:consumos": "ts-node --project tsconfig.seed.json prisma/seed-consumos.ts",
-    "generar:cache": "ts-node --project tsconfig.seed.json prisma/generar-cache.ts"
+    "generar:cache": "ts-node --project tsconfig.seed.json prisma/generar-cache.ts",
+    "validar:modelo": "ts-node --project tsconfig.seed.json prisma/validar-modelo.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -53,7 +54,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/cron": "^2.4.3",
     "@types/express": "^5.0.0",
-    "@types/jest": "^30.0.0",
+    "@types/jest": "^29.5.0",
     "@types/node": "^24.0.0",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^7.0.0",
@@ -61,7 +62,7 @@
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^17.0.0",
-    "jest": "^30.0.0",
+    "jest": "^29.7.0",
     "prettier": "^3.4.2",
     "socket.io-client": "^4.8.3",
     "source-map-support": "^0.5.21",

@@ -77,20 +77,89 @@ npx nest build && node dist/main
 npx nest start --debug --watch
 ```
 
-## Pruebas
+## Pruebas y Validación
+
+### Tests unitarios
 
 ```bash
-# Tests unitarios
+# Correr todos los tests
 npx jest
 
-# Tests en modo watch
+# Tests en modo watch (re-ejecuta al guardar)
 npx jest --watch
 
-# Cobertura de tests
+# Con reporte de cobertura
 npx jest --coverage
 
 # Tests end-to-end
 npx jest --config ./test/jest-e2e.json
+```
+
+Los tests unitarios cubren tres módulos críticos sin tocar la base de datos real (todo mockeado con `jest.fn()`):
+
+| Archivo | Qué verifica |
+|---|---|
+| `src/auth/auth.service.spec.ts` | Login exitoso, usuario no encontrado, contraseña incorrecta, sucursal inactiva |
+| `src/auth/guards/roles.guard.spec.ts` | Acceso concedido/denegado según rol, ruta sin restricción de rol |
+| `src/transferencias/transferencias.service.spec.ts` | Formato del código de trazabilidad, misma sucursal origen/destino, stock insuficiente |
+| `src/analitica/analitica.service.spec.ts` | Retorno de caché, entrenamiento en background, omisión de series cortas |
+
+**Resultado obtenido:**
+```
+Test Suites: 5 passed, 5 total
+Tests:       19 passed, 19 total
+Time:        ~21 s
+```
+
+---
+
+### Validación del modelo LSTM
+
+```bash
+npm run validar:modelo
+```
+
+Valida la precisión del modelo de predicción de demanda usando **holdout validation (80% entrenamiento / 20% validación)** sobre los datos históricos reales de cada sucursal. Solo se evalúan productos con ≥ 28 puntos históricos (doble del mínimo requerido en producción).
+
+Métricas calculadas por producto:
+- **MAE** (Mean Absolute Error): error absoluto promedio en unidades/día
+- **RMSE** (Root Mean Square Error): penaliza más los errores grandes
+- **Precisión direccional**: % de días en que se predijo correctamente si el consumo sube o baja
+
+El reporte se imprime en consola y se guarda automáticamente en `docs/validacion-modelo-[FECHA].txt`.
+
+**Resultado obtenido (2026-08-12):**
+```
+══════════════════════════════════════════════════════
+  VALIDACIÓN DEL MODELO LSTM — SISTEMA CENDENT
+══════════════════════════════════════════════════════
+
+  Sucursal: El Paraiso
+  ─────────────────────────────────────────────────
+  Productos validados        :  353
+  Productos omitidos (< 28d) :    1
+  MAE promedio               :   0.37 u/día
+  RMSE promedio              :   0.75 u/día
+  Precisión direccional      :   71.1 %
+  Error de entrenamiento avg : 0.0211
+
+  Sucursal: Norte
+  ─────────────────────────────────────────────────
+  Productos validados        :    7
+  Productos omitidos (< 28d) :    0
+  MAE promedio               :   4.92 u/día
+  RMSE promedio              :   5.98 u/día
+  Precisión direccional      :   48.7 %
+  Error de entrenamiento avg : 0.0438
+
+──────────────────────────────────────────────────
+  RESUMEN GLOBAL
+──────────────────────────────────────────────────
+  Total productos validados  :  360
+  MAE global                 :   0.46 u/día
+  RMSE global                :   0.85 u/día
+  Precisión direccional      :   70.6 %
+══════════════════════════════════════════════════════
 ```
 
 ## Linting y formato

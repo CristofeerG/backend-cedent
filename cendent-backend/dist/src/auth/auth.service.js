@@ -59,6 +59,9 @@ let AuthService = class AuthService {
         if (!usuario) {
             throw new common_1.UnauthorizedException('Credenciales incorrectas');
         }
+        if (usuario.sucursales?.estado === false) {
+            throw new common_1.UnauthorizedException('Sucursal inactiva');
+        }
         const passwordValida = await bcrypt.compare(dto.password, usuario.password_hash);
         if (!passwordValida) {
             throw new common_1.UnauthorizedException('Credenciales incorrectas');

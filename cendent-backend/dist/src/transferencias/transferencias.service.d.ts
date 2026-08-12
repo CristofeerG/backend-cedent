@@ -1,6 +1,7 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { EnviarTransferenciaDto } from './dto/enviar-transferencia.dto';
 import { RecibirTransferenciaDto } from './dto/recibir-transferencia.dto';
+export declare function generarCodigoTrz(): string;
 export declare class TransferenciasService {
     private readonly prisma;
     constructor(prisma: PrismaService);

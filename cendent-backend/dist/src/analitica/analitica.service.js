@@ -91,8 +91,8 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
     }
     suavizarSerie(serie) {
         return serie.map((_, i) => {
-            const inicio = Math.max(0, i - 2);
-            const fin = Math.min(serie.length - 1, i + 2);
+            const inicio = Math.max(0, i - 1);
+            const fin = Math.min(serie.length - 1, i + 1);
             const ventana = serie.slice(inicio, fin + 1);
             return ventana.reduce((s, v) => s + v, 0) / ventana.length;
         });

@@ -8,7 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EnviarTransferenciaDto } from './dto/enviar-transferencia.dto';
 import { RecibirTransferenciaDto } from './dto/recibir-transferencia.dto';
 
-function generarCodigoTrz(): string {
+export function generarCodigoTrz(): string {
   const hoy = new Date();
   const fechaStr = hoy.toISOString().slice(0, 10).replace(/-/g, '');
   const aleatorio = Math.random().toString(36).substring(2, 7).toUpperCase();
@@ -74,6 +74,10 @@ export class TransferenciasService {
       }
 
       const idSucursalDestino = sucursalDestino.id_sucursal;
+
+      if (idSucursalDestino === idSucursalOrigen) {
+        throw new BadRequestException('No se puede transferir a la misma sucursal de origen');
+      }
 
       // 2. Por cada producto: buscar, validar stock FIFO y preparar descuentos
       type LoteDescontado = { id_lote: number; cantidadDescontada: number };

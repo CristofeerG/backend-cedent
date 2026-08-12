@@ -398,13 +398,42 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    // Proyección por semana (total 30d / 4 semanas)
-    final proySecSemana = (_totalPredicho30 / 4).round();
+    // Tasa de crecimiento histórica (S-3 → Actual), solo pares donde ambos > 0
+    final ratios = <double>[];
+    for (int i = 1; i < 4; i++) {
+      if (realSem[i - 1] > 0 && realSem[i] > 0) {
+        ratios.add(realSem[i] / realSem[i - 1]);
+      }
+    }
+    double tasa = ratios.length >= 2
+        ? ratios.reduce((a, b) => a + b) / ratios.length
+        : 1.05;
+    tasa = tasa.clamp(0.85, 1.20);
+
+    // Distribuir proyección total con tendencia: S+n = base × tasa^n, luego normalizar
+    final base = _totalPredicho30 / 4.0;
+    final raw0 = base;
+    final raw1 = base * tasa;
+    final raw2 = base * tasa * tasa;
+    final raw3 = base * tasa * tasa * tasa;
+    final rawSum = raw0 + raw1 + raw2 + raw3;
+    final List<int> proyecciones;
+    if (rawSum > 0 && _totalPredicho30 > 0) {
+      proyecciones = [
+        (raw0 / rawSum * _totalPredicho30).round(),
+        (raw1 / rawSum * _totalPredicho30).round(),
+        (raw2 / rawSum * _totalPredicho30).round(),
+        (raw3 / rawSum * _totalPredicho30).round(),
+      ];
+    } else {
+      final equal = (_totalPredicho30 / 4).round();
+      proyecciones = [equal, equal, equal, equal];
+    }
 
     final labels = ['S-3', 'S-2', 'S-1', 'Actual', 'S+1', 'S+2', 'S+3', 'S+4'];
     final values = [
       realSem[0].round(), realSem[1].round(), realSem[2].round(), realSem[3].round(),
-      proySecSemana, proySecSemana, proySecSemana, proySecSemana,
+      proyecciones[0], proyecciones[1], proyecciones[2], proyecciones[3],
     ];
 
     final maxVal = values.reduce((a, b) => a > b ? a : b);
@@ -1586,7 +1615,7 @@ class _ForecastPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _PanelHeader(
-            title: 'Consumo predicho — próximos 30 días',
+            title: 'Predicción de consumo — próximos 30 días',
             aiBadge: true,
             subtitle: 'Proyección de demanda por semana · modelo LSTM',
           ),

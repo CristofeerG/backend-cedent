@@ -14,41 +14,32 @@ function randFrom<T>(arr: T[]): T {
 
 function randomTime(date: Date): Date {
   const dt = new Date(date);
-  dt.setHours(randInt(8, 16), randInt(0, 59), randInt(0, 59), 0);
+  dt.setHours(randInt(7, 17), randInt(0, 59), randInt(0, 59), 0);
   return dt;
 }
 
-function isoWeek(d: Date): number {
-  const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  utc.setUTCDate(utc.getUTCDate() + 4 - (utc.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(utc.getUTCFullYear(), 0, 1));
-  return Math.ceil(((utc.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
-}
+// ─── Patrón semanal ───────────────────────────────────────────────────────────
+// Índice = getDay(): 0 domingo, 1 lunes, ..., 6 sábado
 
-// Devuelve 3-5 días laborables por semana dentro del rango [start, end]
-function pickActiveDays(start: Date, end: Date): Date[] {
-  const all: Date[] = [];
-  const cur = new Date(start);
-  while (cur <= end) {
-    all.push(new Date(cur));
-    cur.setDate(cur.getDate() + 1);
-  }
+const CONFIG_DIA: { prob: number; mult: number }[] = [
+  { prob: 0.10, mult: 0.2 }, // domingo
+  { prob: 0.60, mult: 0.8 }, // lunes
+  { prob: 0.90, mult: 1.2 }, // martes
+  { prob: 0.95, mult: 1.3 }, // miércoles (día pico)
+  { prob: 0.90, mult: 1.1 }, // jueves
+  { prob: 0.70, mult: 0.9 }, // viernes
+  { prob: 0.30, mult: 0.4 }, // sábado
+];
 
-  const byWeek = new Map<string, Date[]>();
-  for (const d of all) {
-    const key = `${d.getFullYear()}-W${String(isoWeek(d)).padStart(2, '0')}`;
-    if (!byWeek.has(key)) byWeek.set(key, []);
-    byWeek.get(key)!.push(d);
-  }
-
-  const active: Date[] = [];
-  for (const days of byWeek.values()) {
-    const workdays = days.filter(d => d.getDay() !== 0); // sin domingos
-    const count = Math.min(randInt(3, 5), workdays.length);
-    const shuffled = [...workdays].sort(() => Math.random() - 0.5);
-    active.push(...shuffled.slice(0, count));
-  }
-  return active.sort((a, b) => a.getTime() - b.getTime());
+// Multiplicador de tendencia según distancia en semanas al día de hoy
+function multSemana(daysFromEnd: number): number {
+  const w = Math.floor(daysFromEnd / 7);
+  if (w === 0) return 1.20; // semana actual
+  if (w === 1) return 1.15; // semana -1
+  if (w === 2) return 1.00; // semana -2
+  if (w === 3) return 0.85; // semana -3
+  if (w === 4) return 0.70; // semana -4
+  return 0.65;              // semanas más antiguas
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -56,7 +47,6 @@ function pickActiveDays(start: Date, end: Date): Date[] {
 async function main() {
   console.log('Cargando datos desde la BD...');
 
-  // 1. Sucursales activas
   const sucursales = await prisma.sucursales.findMany({
     where: { estado: true },
     select: { id_sucursal: true, nom_sucursal: true },
@@ -66,7 +56,6 @@ async function main() {
     return;
   }
 
-  // 2. Lotes con stock disponible
   const lotes = await prisma.lotes.findMany({
     where: { stock_actual: { gt: 0 } },
     select: {
@@ -78,13 +67,11 @@ async function main() {
     },
   });
 
-  // 3. Kits con detalle
   const kits = await prisma.kits.findMany({
     include: { detalle_kit: { where: { id_producto: { not: null } } } },
   });
   const kitsValidos = kits.filter(k => k.detalle_kit.length > 0);
 
-  // 4. Cualquier usuario existente
   const usuario = await prisma.usuarios.findFirst({ select: { id_usuario: true } });
   if (!usuario) {
     console.log('Sin usuarios registrados. Abortando.');
@@ -92,13 +79,15 @@ async function main() {
   }
   const idUsuario = usuario.id_usuario;
 
-  console.log(`  ${sucursales.length} sucursal(es) · ${lotes.length} lote(s) con stock · ${kitsValidos.length} kit(s) · usuario #${idUsuario}`);
+  console.log(
+    `  ${sucursales.length} sucursal(es) · ${lotes.length} lote(s) · ` +
+    `${kitsValidos.length} kit(s) · usuario #${idUsuario}`,
+  );
 
   // ── Stock en memoria ───────────────────────────────────────────────────────
   const stockMap = new Map<number, number>();
   for (const l of lotes) stockMap.set(l.id_lote, Number(l.stock_actual));
 
-  // Índice: id_sucursal → lotes de esa sucursal
   const lotesBySucursal = new Map<number, typeof lotes>();
   for (const l of lotes) {
     if (l.id_sucursal == null) continue;
@@ -106,6 +95,21 @@ async function main() {
     arr.push(l);
     lotesBySucursal.set(l.id_sucursal, arr);
   }
+
+  // ── Rango de fechas: últimas 10 semanas ───────────────────────────────────
+  const hoy = new Date();
+  hoy.setHours(23, 59, 59, 0);
+
+  const inicio = new Date(hoy);
+  inicio.setDate(inicio.getDate() - 70); // 10 semanas × 7 días
+  inicio.setHours(0, 0, 0, 0);
+
+  const diasTotal = Math.floor((hoy.getTime() - inicio.getTime()) / 86_400_000);
+
+  console.log(
+    `\nRango: ${inicio.toISOString().slice(0, 10)} → ${new Date().toISOString().slice(0, 10)} ` +
+    `(${diasTotal} días / 10 semanas)`,
+  );
 
   // ── Simulación ─────────────────────────────────────────────────────────────
   type MovRow = {
@@ -119,102 +123,126 @@ async function main() {
 
   const toInsert: MovRow[] = [];
   const movsPorSucursal = new Map<number, number>();
-  const stockPorSucursal = new Map<number, number>();
+  const stockDescuentoSucursal = new Map<number, number>();
   for (const s of sucursales) {
     movsPorSucursal.set(s.id_sucursal, 0);
-    stockPorSucursal.set(s.id_sucursal, 0);
+    stockDescuentoSucursal.set(s.id_sucursal, 0);
   }
-
-  const start = new Date('2026-06-01');
-  const end   = new Date('2026-07-15');
 
   for (const sucursal of sucursales) {
     const idSucursal = sucursal.id_sucursal;
     const lotesActivos = lotesBySucursal.get(idSucursal) ?? [];
+
     if (lotesActivos.length === 0) {
       console.log(`  [!] ${sucursal.nom_sucursal}: sin lotes con stock — se omite.`);
       continue;
     }
 
-    const activeDays = pickActiveDays(start, end);
+    for (let offset = 0; offset <= diasTotal; offset++) {
+      const fechaDia = new Date(inicio);
+      fechaDia.setDate(fechaDia.getDate() + offset);
+      fechaDia.setHours(0, 0, 0, 0);
 
-    for (const day of activeDays) {
-      const numMov = randInt(2, 6);
+      const diaSemana = fechaDia.getDay(); // 0=dom ... 6=sáb
+      const cfg = CONFIG_DIA[diaSemana];
 
-      for (let i = 0; i < numMov; i++) {
-        const useKit = kitsValidos.length > 0 && Math.random() < 0.4;
+      // ¿Hay actividad este día?
+      if (Math.random() > cfg.prob) continue;
 
-        if (useKit) {
-          // EGRESO_KIT — un movimiento por cada ítem del kit (FIFO por fecha_ingreso)
-          const kit = randFrom(kitsValidos);
+      const daysFromEnd = diasTotal - offset;
+      const wMult = multSemana(daysFromEnd);
+      const dMult = cfg.mult;
+      const factorTotal = dMult * wMult;
 
-          for (const detalle of kit.detalle_kit) {
-            const idProducto = detalle.id_producto!;
-            const cantNecesaria = Number(detalle.cantidad_estandar);
+      // Cantidad base de movimientos directos en un día normal
+      const baseDirectos = randInt(5, 12);
+      const numDirectos = Math.max(1, Math.round(baseDirectos * factorTotal));
 
-            const candidatos = lotesActivos
-              .filter(l => l.id_producto === idProducto && (stockMap.get(l.id_lote) ?? 0) > 0)
-              .sort((a, b) => (a.fecha_ingreso?.getTime() ?? 0) - (b.fecha_ingreso?.getTime() ?? 0));
+      // Kits: 0-3 por día, escalados
+      const baseKits = kitsValidos.length > 0 ? randInt(0, 3) : 0;
+      const numKits = Math.max(0, Math.round(baseKits * factorTotal));
 
-            if (candidatos.length === 0) continue;
+      // ── EGRESO_KIT ────────────────────────────────────────────────────────
+      for (let k = 0; k < numKits; k++) {
+        const kit = randFrom(kitsValidos);
 
-            const lote = candidatos[0];
-            const stockActual = stockMap.get(lote.id_lote) ?? 0;
-            const cantidad = Math.min(cantNecesaria, stockActual);
-            if (cantidad <= 0) continue;
+        for (const detalle of kit.detalle_kit) {
+          const idProducto = detalle.id_producto!;
+          const cantNecesaria = Number(detalle.cantidad_estandar);
 
-            stockMap.set(lote.id_lote, stockActual - cantidad);
-            toInsert.push({
-              id_usuario: idUsuario,
-              id_lote: lote.id_lote,
-              id_kit: kit.id_kit,
-              cantidad,
-              fecha_hora: randomTime(day),
-              tipo_mov: 'EGRESO_KIT',
-            });
-            movsPorSucursal.set(idSucursal, (movsPorSucursal.get(idSucursal) ?? 0) + 1);
-            stockPorSucursal.set(idSucursal, (stockPorSucursal.get(idSucursal) ?? 0) + cantidad);
-          }
-        } else {
-          // EGRESO_DIRECTO — lote aleatorio con stock > 0
-          const disponibles = lotesActivos.filter(l => (stockMap.get(l.id_lote) ?? 0) > 0);
-          if (disponibles.length === 0) continue;
+          const candidatos = lotesActivos
+            .filter(l => l.id_producto === idProducto && (stockMap.get(l.id_lote) ?? 0) > 0)
+            .sort((a, b) => (a.fecha_ingreso?.getTime() ?? 0) - (b.fecha_ingreso?.getTime() ?? 0));
 
-          const lote = randFrom(disponibles);
+          if (candidatos.length === 0) continue;
+
+          const lote = candidatos[0];
           const stockActual = stockMap.get(lote.id_lote) ?? 0;
-          const cantidad = Math.min(randInt(1, 5), stockActual);
+          const cantidad = Math.min(cantNecesaria, stockActual);
           if (cantidad <= 0) continue;
 
           stockMap.set(lote.id_lote, stockActual - cantidad);
+          stockDescuentoSucursal.set(idSucursal, (stockDescuentoSucursal.get(idSucursal) ?? 0) + cantidad);
+
           toInsert.push({
             id_usuario: idUsuario,
             id_lote: lote.id_lote,
-            id_kit: null,
+            id_kit: kit.id_kit,
             cantidad,
-            fecha_hora: randomTime(day),
-            tipo_mov: 'EGRESO_DIRECTO',
+            fecha_hora: randomTime(fechaDia),
+            tipo_mov: 'EGRESO_KIT',
           });
           movsPorSucursal.set(idSucursal, (movsPorSucursal.get(idSucursal) ?? 0) + 1);
-          stockPorSucursal.set(idSucursal, (stockPorSucursal.get(idSucursal) ?? 0) + cantidad);
         }
+      }
+
+      // ── EGRESO_DIRECTO ────────────────────────────────────────────────────
+      for (let d = 0; d < numDirectos; d++) {
+        const disponibles = lotesActivos.filter(l => (stockMap.get(l.id_lote) ?? 0) > 0);
+        if (disponibles.length === 0) break;
+
+        const lote = randFrom(disponibles);
+        const stockActual = stockMap.get(lote.id_lote) ?? 0;
+        const cantidad = Math.min(randInt(1, 5), stockActual);
+        if (cantidad <= 0) continue;
+
+        stockMap.set(lote.id_lote, stockActual - cantidad);
+        stockDescuentoSucursal.set(idSucursal, (stockDescuentoSucursal.get(idSucursal) ?? 0) + cantidad);
+
+        toInsert.push({
+          id_usuario: idUsuario,
+          id_lote: lote.id_lote,
+          id_kit: null,
+          cantidad,
+          fecha_hora: randomTime(fechaDia),
+          tipo_mov: 'EGRESO_DIRECTO',
+        });
+        movsPorSucursal.set(idSucursal, (movsPorSucursal.get(idSucursal) ?? 0) + 1);
       }
     }
   }
 
-  // ── Limpiar seed anterior (2025) ─────────────────────────────────────────
-  console.log('\nLimpiando movimientos del seed anterior (2025-06-01 – 2025-07-15)...');
+  // ── Limpiar seed anterior (últimas 75 días) ───────────────────────────────
+  console.log('\nLimpiando movimientos anteriores (últimos 75 días)...');
   const deleted = await prisma.$executeRawUnsafe(`
     DELETE FROM movimientos
-    WHERE fecha_hora BETWEEN '2025-06-01' AND '2025-07-16'
-      AND tipo_mov IN ('EGRESO_DIRECTO', 'EGRESO_KIT')
+    WHERE tipo_mov IN ('EGRESO_KIT', 'EGRESO_DIRECTO')
+      AND fecha_hora >= NOW() - INTERVAL '75 days'
   `);
   console.log(`  ${deleted} movimiento(s) eliminado(s).`);
 
-  // ── Persistir ──────────────────────────────────────────────────────────────
-  console.log(`\nInsertando ${toInsert.length} movimientos...`);
-  await prisma.movimientos.createMany({ data: toInsert });
+  // ── Persistir movimientos ──────────────────────────────────────────────────
+  console.log(`\nInsertando ${toInsert.length} movimientos con patrón estacional...`);
+  const BATCH = 500;
+  let insertados = 0;
+  for (let i = 0; i < toInsert.length; i += BATCH) {
+    await prisma.movimientos.createMany({ data: toInsert.slice(i, i + BATCH) as any });
+    insertados += Math.min(BATCH, toInsert.length - i);
+    process.stdout.write(`\r  Insertados: ${insertados} / ${toInsert.length}`);
+  }
+  console.log();
 
-  // Actualizar únicamente los lotes cuyo stock cambió
+  // ── Actualizar stock de lotes modificados ─────────────────────────────────
   const lotesModificados = lotes.filter(
     l => Number(l.stock_actual) !== (stockMap.get(l.id_lote) ?? Number(l.stock_actual)),
   );
@@ -229,17 +257,20 @@ async function main() {
   );
 
   // ── Resumen ────────────────────────────────────────────────────────────────
-  const sep = '═'.repeat(52);
+  const sep = '═'.repeat(56);
   console.log(`\n${sep}`);
-  console.log('  Seed consumos completado');
+  console.log('  Seed consumos estacional completado');
   console.log(sep);
   console.log(`  Total movimientos insertados : ${toInsert.length}`);
   console.log(`  Lotes con stock actualizado  : ${lotesModificados.length}`);
   console.log(`\n  Por sucursal:`);
   for (const s of sucursales) {
     const movs  = movsPorSucursal.get(s.id_sucursal) ?? 0;
-    const stock = stockPorSucursal.get(s.id_sucursal) ?? 0;
-    console.log(`    ${s.nom_sucursal.padEnd(28)} ${String(movs).padStart(4)} movimientos · ${stock.toFixed(0).padStart(6)} u descontadas`);
+    const stock = stockDescuentoSucursal.get(s.id_sucursal) ?? 0;
+    console.log(
+      `    ${s.nom_sucursal.padEnd(28)} ${String(movs).padStart(5)} movimientos · ` +
+      `${stock.toFixed(0).padStart(7)} u descontadas`,
+    );
   }
   console.log(sep);
 }

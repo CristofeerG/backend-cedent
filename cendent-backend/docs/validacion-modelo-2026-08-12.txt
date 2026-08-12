@@ -1,0 +1,32 @@
+══════════════════════════════════════════════════════
+  VALIDACIÓN DEL MODELO LSTM — SISTEMA CENDENT
+  ══════════════════════════════════════════════════════
+
+    Sucursal: El Paraiso
+      ─────────────────────────────────────────────────
+        Productos validados        :  353
+          Productos omitidos (< 28d) :    1
+            MAE promedio               :   0.37 u/día
+              RMSE promedio              :   0.75 u/día
+                Precisión direccional      :   71.1 %
+                  Error de entrenamiento avg :0.0211
+
+                    Sucursal: Norte
+                      ─────────────────────────────────────────────────
+                        Productos validados        :    7
+                          Productos omitidos (< 28d) :    0
+                            MAE promedio               :   4.92 u/día
+                              RMSE promedio              :   5.98 u/día
+                                Precisión direccional      :   48.7 %
+                                  Error de entrenamiento avg :0.0438
+
+                                  ──────────────────────────────────────────────────
+                                    RESUMEN GLOBAL
+                                    ──────────────────────────────────────────────────
+                                      Total productos validados  :  360
+                                        MAE global                 :   0.46 u/día
+                                          RMSE global                :   0.85 u/día
+                                            Precisión direccional      :   70.6 %
+                                            ══════════════════════════════════════════════════════
+                                              Generado: 12/8/2026, 1:02:56 p. m.
+                                              ══════════════════════════════════════════════════════

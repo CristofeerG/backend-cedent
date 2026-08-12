@@ -19,6 +19,10 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales incorrectas');
     }
 
+    if (usuario.sucursales?.estado === false) {
+      throw new UnauthorizedException('Sucursal inactiva');
+    }
+
     const passwordValida = await bcrypt.compare(dto.password, usuario.password_hash);
     if (!passwordValida) {
       throw new UnauthorizedException('Credenciales incorrectas');
