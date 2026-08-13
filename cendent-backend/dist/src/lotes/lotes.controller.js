@@ -29,8 +29,8 @@ let LotesController = class LotesController {
     registrarLote(dto, req) {
         return this.lotesService.registrarLote(dto, req.user.id_sucursal);
     }
-    obtenerPorProducto(idProducto) {
-        return this.lotesService.obtenerPorProducto(idProducto);
+    obtenerPorProducto(idProducto, req) {
+        return this.lotesService.obtenerPorProducto(idProducto, req.user.id_sucursal);
     }
     darDeBaja(id, req) {
         return this.lotesService.darDeBaja(id, req.user.id_sucursal);
@@ -50,11 +50,12 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], LotesController.prototype, "registrarLote", null);
 __decorate([
-    (0, swagger_1.ApiOperation)({ summary: 'Listar lotes de un producto ordenados por fecha de vencimiento' }),
+    (0, swagger_1.ApiOperation)({ summary: 'Listar lotes de un producto en la sucursal del usuario autenticado' }),
     (0, common_1.Get)('producto/:id_producto'),
     __param(0, (0, common_1.Param)('id_producto', common_1.ParseIntPipe)),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Number]),
+    __metadata("design:paramtypes", [Number, Object]),
     __metadata("design:returntype", void 0)
 ], LotesController.prototype, "obtenerPorProducto", null);
 __decorate([

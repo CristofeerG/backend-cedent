@@ -26,9 +26,11 @@ let ProductosController = class ProductosController {
     constructor(productosService) {
         this.productosService = productosService;
     }
-    obtenerInventario(idSucursal) {
-        const sucursal = idSucursal ? parseInt(idSucursal, 10) : undefined;
-        return this.productosService.obtenerInventario(sucursal);
+    obtenerInventario(req) {
+        const idSucursal = req.user.rol === 'administrador'
+            ? undefined
+            : req.user.id_sucursal;
+        return this.productosService.obtenerInventario(idSucursal);
     }
     buscarPorNombre(nombre) {
         if (!nombre?.trim())
@@ -53,12 +55,11 @@ let ProductosController = class ProductosController {
 };
 exports.ProductosController = ProductosController;
 __decorate([
-    (0, swagger_1.ApiOperation)({ summary: 'Obtener inventario consolidado con stock total por producto vigente' }),
-    (0, swagger_1.ApiQuery)({ name: 'id_sucursal', required: false, type: Number }),
+    (0, swagger_1.ApiOperation)({ summary: 'Obtener inventario consolidado con stock total por producto vigente (filtrado por sucursal del JWT; administrador ve todas)' }),
     (0, common_1.Get)('inventario'),
-    __param(0, (0, common_1.Query)('id_sucursal')),
+    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], ProductosController.prototype, "obtenerInventario", null);
 __decorate([

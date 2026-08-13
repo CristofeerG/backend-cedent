@@ -4,7 +4,7 @@ import { ProductosService } from './productos.service';
 export declare class ProductosController {
     private readonly productosService;
     constructor(productosService: ProductosService);
-    obtenerInventario(idSucursal?: string): Promise<{
+    obtenerInventario(req: any): Promise<{
         stock_total: number;
         lotes_proximos_vencer: number;
         lotes_count: number;

@@ -17,7 +17,7 @@ import 'transferencias_screen.dart';
 import 'usuarios_screen.dart';
 
 // ─── Modelos ──────────────────────────────────────────────────────────────────
-enum MovType { egresoKit, egresoDirecto, ingreso, transferencia }
+enum MovType { egresoKit, egresoDirecto, ingreso, transferenciaEntrada, transferenciaSalida }
 
 class Movement {
   final String date;
@@ -93,7 +93,9 @@ MovType _parseMovType(String? t) {
     case 'EGRESO_DIRECTO': return MovType.egresoDirecto;
     case 'INGRESO_INICIAL':
     case 'INGRESO': return MovType.ingreso;
-    default: return MovType.transferencia;
+    case 'INGRESO_TRANSFERENCIA': return MovType.transferenciaEntrada;
+    case 'SALIDA_TRANSFERENCIA':  return MovType.transferenciaSalida;
+    default: return MovType.transferenciaSalida;
   }
 }
 
@@ -237,16 +239,20 @@ class _HomeScreenState extends State<HomeScreen> {
     // Mostrar dashboard inmediatamente; IA carga en segundo plano
     setState(() => _loading = false);
 
-    // Predicción puede tardar 30-120 s (Brain.js entrena en cada llamada)
-    _api.getPrediccion(widget.idSucursal).then((prediccion) {
-      if (!mounted) return;
-      _processPrediccion(prediccion, movimientos);
+    // Predicción solo para administrador (Brain.js puede tardar 30-120 s)
+    if (widget.rol == 'administrador') {
+      _api.getPrediccion(widget.idSucursal).then((prediccion) {
+        if (!mounted) return;
+        _processPrediccion(prediccion, movimientos);
+        setState(() => _loadingPrediccion = false);
+      // ignore: avoid_types_on_closure_parameters
+      }).catchError((Object _) {
+        if (!mounted) return;
+        setState(() => _loadingPrediccion = false);
+      });
+    } else {
       setState(() => _loadingPrediccion = false);
-    // ignore: avoid_types_on_closure_parameters
-    }).catchError((Object _) {
-      if (!mounted) return;
-      setState(() => _loadingPrediccion = false);
-    });
+    }
   }
 
   void _processInventario(List<dynamic>? inv) {
@@ -317,7 +323,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final type = _parseMovType(m['tipo_mov'] as String?);
       final qty = _toDouble(m['cantidad']);
       final nomUser = usuario?['nom_usuario'] ?? '—';
-      final signedQty = (type == MovType.egresoKit || type == MovType.egresoDirecto || type == MovType.transferencia) ? -qty : qty;
+      final signedQty = (type == MovType.egresoKit || type == MovType.egresoDirecto || type == MovType.transferenciaSalida) ? -qty : qty;
       return Movement(
         _formatFecha(m['fecha_hora'] as String?),
         nombreProd,
@@ -650,6 +656,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               totalPredicho: _totalPredicho30,
                               loadingPrediccion: _loadingPrediccion,
                               onRefresh: _loadData,
+                              rol: widget.rol,
                               onDespacharKit: _despacharKit,
                               onRegistrarConsumo: _registrarConsumo,
                               onNuevaTransferencia: _nuevaTransferencia,
@@ -657,7 +664,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               onTransferenciasTap: () => setState(() => _activeNav = 4),
                               onMovimientosTap: () => setState(() => _activeNav = 3),
                               onVerMovimientos: () => setState(() => _activeNav = 3),
-                              onVerAnalitica: () => setState(() => _activeNav = 5),
+                              onVerAnalitica: widget.rol == 'administrador'
+                                  ? () => setState(() => _activeNav = 5)
+                                  : null,
                               onVencerTap: () => setState(() {
                                 _filtroEstadoInicialInventario = StockState.porVencer;
                                 _activeNav = 1;
@@ -699,6 +708,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 backgroundColor: CendentColors.card,
                 child: _Sidebar(
                   active: _activeNav,
+                  rol: widget.rol,
                   onSelect: (i) {
                     setState(() => _activeNav = i);
                     Navigator.of(context).maybePop();
@@ -712,6 +722,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (showSidebar)
                 _Sidebar(
                   active: _activeNav,
+                  rol: widget.rol,
                   onSelect: (i) => setState(() => _activeNav = i),
                   onLogout: _logout,
                 ),
@@ -754,7 +765,8 @@ class _Sidebar extends StatelessWidget {
   final int active;
   final ValueChanged<int> onSelect;
   final VoidCallback onLogout;
-  const _Sidebar({required this.active, required this.onSelect, required this.onLogout});
+  final String rol;
+  const _Sidebar({required this.active, required this.onSelect, required this.onLogout, required this.rol});
 
   @override
   Widget build(BuildContext context) {
@@ -813,8 +825,10 @@ class _Sidebar extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
               child: Builder(builder: (_) {
                 addGroup('Operación', _navOperacion);
-                addGroup('Inteligencia', _navInteligencia);
-                addGroup('Sistema', _navSistema);
+                if (rol == 'administrador') {
+                  addGroup('Inteligencia', _navInteligencia);
+                  addGroup('Sistema', _navSistema);
+                }
                 return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
               }),
             ),
@@ -1091,6 +1105,7 @@ class _DashboardBody extends StatelessWidget {
   final VoidCallback? onMovimientosTap;
   final VoidCallback? onVerMovimientos;
   final VoidCallback? onVerAnalitica;
+  final String rol;
 
   const _DashboardBody({
     required this.kpis,
@@ -1101,6 +1116,7 @@ class _DashboardBody extends StatelessWidget {
     required this.totalPredicho,
     required this.loadingPrediccion,
     required this.onRefresh,
+    required this.rol,
     this.onDespacharKit,
     this.onRegistrarConsumo,
     this.onNuevaTransferencia,
@@ -1122,22 +1138,24 @@ class _DashboardBody extends StatelessWidget {
         _PageHead(onRefresh: onRefresh, onDespacharKit: onDespacharKit, onRegistrarConsumo: onRegistrarConsumo, onNuevaTransferencia: onNuevaTransferencia),
         const SizedBox(height: 22),
         _KpiGrid(kpis: kpis, onProductosTap: onProductosTap, onVencerTap: onVencerTap, onBajoMinimoTap: onBajoMinimoTap, onTransferenciasTap: onTransferenciasTap, onMovimientosTap: onMovimientosTap),
-        const SizedBox(height: 20),
-        if (width >= 1180)
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(flex: 155, child: _ForecastPanel(forecast: forecast, totalReal: totalReal, totalPredicho: totalPredicho, loading: loadingPrediccion)),
-                const SizedBox(width: 20),
-                Expanded(flex: 100, child: _RiskPanel(risks: risks, loading: loadingPrediccion, onVerTodo: onVerAnalitica)),
-              ],
-            ),
-          )
-        else ...[
-          _ForecastPanel(forecast: forecast, totalReal: totalReal, totalPredicho: totalPredicho, loading: loadingPrediccion),
+        if (rol == 'administrador') ...[
           const SizedBox(height: 20),
-          _RiskPanel(risks: risks, loading: loadingPrediccion, onVerTodo: onVerAnalitica),
+          if (width >= 1180)
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(flex: 155, child: _ForecastPanel(forecast: forecast, totalReal: totalReal, totalPredicho: totalPredicho, loading: loadingPrediccion)),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 100, child: _RiskPanel(risks: risks, loading: loadingPrediccion, onVerTodo: onVerAnalitica)),
+                ],
+              ),
+            )
+          else ...[
+            _ForecastPanel(forecast: forecast, totalReal: totalReal, totalPredicho: totalPredicho, loading: loadingPrediccion),
+            const SizedBox(height: 20),
+            _RiskPanel(risks: risks, loading: loadingPrediccion, onVerTodo: onVerAnalitica),
+          ],
         ],
         const SizedBox(height: 20),
         _MovementsPanel(movements: movements, onVerTodos: onVerMovimientos),
@@ -1989,7 +2007,11 @@ class _MovTypeBadge extends StatelessWidget {
         icon = Icons.south_rounded; label = 'INGRESO';
         fg = CendentColors.green; bg = CendentColors.greenSoft;
         break;
-      case MovType.transferencia:
+      case MovType.transferenciaEntrada:
+        icon = Icons.local_shipping_outlined; label = 'TRANSFER';
+        fg = CendentColors.amber; bg = CendentColors.amberSoft;
+        break;
+      case MovType.transferenciaSalida:
         icon = Icons.local_shipping_outlined; label = 'TRANSFER';
         fg = CendentColors.amber; bg = CendentColors.amberSoft;
         break;

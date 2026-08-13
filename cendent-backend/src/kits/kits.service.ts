@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearKitDto } from './dto/crear-kit.dto';
 import { ActualizarKitDto } from './dto/actualizar-kit.dto';
@@ -111,6 +111,25 @@ export class KitsService {
 
   async eliminar(idKit: number) {
     await this.obtenerPorId(idKit);
-    return this.prisma.kits.delete({ where: { id_kit: idKit } });
+
+    // 1. Verificar si el kit tiene historial de movimientos
+    //    Si tiene, no se puede eliminar para preservar la auditoría
+    const movimientos = await this.prisma.movimientos.count({
+      where: { id_kit: idKit },
+    });
+
+    if (movimientos > 0) {
+      throw new ConflictException(
+        `El kit tiene ${movimientos} movimiento(s) registrado(s) y no puede eliminarse. ` +
+        'Desactívelo en su lugar para preservar el historial.',
+      );
+    }
+
+    // 2. Si no tiene movimientos, eliminar en transacción:
+    //    primero los detalles del kit, luego el kit
+    return this.prisma.$transaction(async (tx) => {
+      await tx.detalle_kit.deleteMany({ where: { id_kit: idKit } });
+      return tx.kits.delete({ where: { id_kit: idKit } });
+    });
   }
 }

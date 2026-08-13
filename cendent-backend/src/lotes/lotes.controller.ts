@@ -30,10 +30,13 @@ export class LotesController {
     return this.lotesService.registrarLote(dto, req.user.id_sucursal);
   }
 
-  @ApiOperation({ summary: 'Listar lotes de un producto ordenados por fecha de vencimiento' })
+  @ApiOperation({ summary: 'Listar lotes de un producto en la sucursal del usuario autenticado' })
   @Get('producto/:id_producto')
-  obtenerPorProducto(@Param('id_producto', ParseIntPipe) idProducto: number) {
-    return this.lotesService.obtenerPorProducto(idProducto);
+  obtenerPorProducto(
+    @Param('id_producto', ParseIntPipe) idProducto: number,
+    @Req() req: any,
+  ) {
+    return this.lotesService.obtenerPorProducto(idProducto, req.user.id_sucursal as number);
   }
 
   @ApiOperation({ summary: 'Dar de baja un lote (requiere stock en 0) — solo administrador' })

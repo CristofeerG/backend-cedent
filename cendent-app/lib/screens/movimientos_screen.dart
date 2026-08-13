@@ -49,6 +49,8 @@ extension TipoMovimientoX on TipoMovimiento {
     // El backend puede usar EGRESO_KIT para despachos de kits
     if (s == 'EGRESO_KIT') return TipoMovimiento.despachoKit;
     if (s == 'INGRESO_INICIAL') return TipoMovimiento.ingreso;
+    if (s == 'INGRESO_TRANSFERENCIA') return TipoMovimiento.transferenciaEntrada;
+    if (s == 'SALIDA_TRANSFERENCIA')  return TipoMovimiento.transferenciaSalida;
     return TipoMovimiento.values.firstWhere(
       (t) => t.raw == s,
       orElse: () => TipoMovimiento.egreso,
@@ -64,7 +66,7 @@ extension TipoMovimientoX on TipoMovimiento {
       case TipoMovimiento.egresoDirecto:
         return 'EGRESO_DIRECTO';
       case TipoMovimiento.transferenciaEntrada:
-        return 'TRANSF. ENTRADA';
+        return 'INGRESO';
       case TipoMovimiento.transferenciaSalida:
         return 'TRANSF. SALIDA';
       case TipoMovimiento.despachoKit:
@@ -80,6 +82,7 @@ extension TipoMovimientoX on TipoMovimiento {
       case TipoMovimiento.egresoDirecto:
         return MovGroup.egresos;
       case TipoMovimiento.transferenciaEntrada:
+        return MovGroup.ingresos;
       case TipoMovimiento.transferenciaSalida:
         return MovGroup.transferencias;
       case TipoMovimiento.despachoKit:

@@ -107,7 +107,17 @@ let KitsService = class KitsService {
     }
     async eliminar(idKit) {
         await this.obtenerPorId(idKit);
-        return this.prisma.kits.delete({ where: { id_kit: idKit } });
+        const movimientos = await this.prisma.movimientos.count({
+            where: { id_kit: idKit },
+        });
+        if (movimientos > 0) {
+            throw new common_1.ConflictException(`El kit tiene ${movimientos} movimiento(s) registrado(s) y no puede eliminarse. ` +
+                'Desactívelo en su lugar para preservar el historial.');
+        }
+        return this.prisma.$transaction(async (tx) => {
+            await tx.detalle_kit.deleteMany({ where: { id_kit: idKit } });
+            return tx.kits.delete({ where: { id_kit: idKit } });
+        });
     }
 };
 exports.KitsService = KitsService;

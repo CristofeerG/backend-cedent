@@ -103,7 +103,7 @@ String _fmtDate(String? iso) {
 /// Costo numérico → "S/ 2,50"
 String _fmtCosto(dynamic v) {
   final d = _toDouble(v);
-  return 'S/ ${d.toStringAsFixed(2).replaceAll('.', ',')}';
+  return '\$ ${d.toStringAsFixed(2).replaceAll('.', ',')}';
 }
 
 /// Tiempo relativo para subtítulo de movimientos

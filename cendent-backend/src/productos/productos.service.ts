@@ -39,6 +39,9 @@ export class ProductosService {
     en30dias.setDate(en30dias.getDate() + 30);
 
     const productos = await this.prisma.productos.findMany({
+      where: idSucursal
+        ? { lotes: { some: { id_sucursal: idSucursal } } }
+        : {},
       include: {
         lotes: {
           where: {

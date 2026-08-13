@@ -14,7 +14,7 @@ export declare class LotesService {
         fecha_venc: Date;
         fecha_ingreso: Date | null;
     }>;
-    obtenerPorProducto(idProducto: number): import(".prisma/client").Prisma.PrismaPromise<{
+    obtenerPorProducto(idProducto: number, idSucursal: number): import(".prisma/client").Prisma.PrismaPromise<{
         id_lote: number;
         id_producto: number | null;
         id_sucursal: number | null;

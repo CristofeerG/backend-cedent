@@ -32,9 +32,12 @@ export class LotesService {
     });
   }
 
-  obtenerPorProducto(idProducto: number) {
+  obtenerPorProducto(idProducto: number, idSucursal: number) {
     return this.prisma.lotes.findMany({
-      where: { id_producto: idProducto },
+      where: {
+        id_producto: idProducto,
+        id_sucursal: idSucursal,
+      },
       orderBy: { fecha_venc: 'asc' },
     });
   }

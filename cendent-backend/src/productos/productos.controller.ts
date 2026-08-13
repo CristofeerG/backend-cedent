@@ -27,12 +27,13 @@ import { ProductosService } from './productos.service';
 export class ProductosController {
   constructor(private readonly productosService: ProductosService) {}
 
-  @ApiOperation({ summary: 'Obtener inventario consolidado con stock total por producto vigente' })
-  @ApiQuery({ name: 'id_sucursal', required: false, type: Number })
+  @ApiOperation({ summary: 'Obtener inventario consolidado con stock total por producto vigente (filtrado por sucursal del JWT; administrador ve todas)' })
   @Get('inventario')
-  obtenerInventario(@Query('id_sucursal') idSucursal?: string) {
-    const sucursal = idSucursal ? parseInt(idSucursal, 10) : undefined;
-    return this.productosService.obtenerInventario(sucursal);
+  obtenerInventario(@Req() req: any) {
+    const idSucursal = req.user.rol === 'administrador'
+      ? undefined
+      : (req.user.id_sucursal as number);
+    return this.productosService.obtenerInventario(idSucursal);
   }
 
   @ApiOperation({ summary: 'Buscar productos por nombre (búsqueda parcial, insensible a mayúsculas)' })
