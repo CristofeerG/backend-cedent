@@ -23,6 +23,7 @@ class DemandaProductoDto {
     consumo_predicho_30_dias;
     dias_para_quiebre;
     sugerencia_compra;
+    prediccion_semanal;
 }
 exports.DemandaProductoDto = DemandaProductoDto;
 class ResultadoPrediccionDto {

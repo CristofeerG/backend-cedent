@@ -1,7 +1,16 @@
 /**
- * Valida la precisión del modelo LSTM mediante holdout validation (80/20).
- * Usa exactamente los mismos hiperparámetros y lógica de suavizado que
- * AnaliticaService (hiddenLayers [10,5], iterations 500, errorThresh 0.01).
+ * Valida la precisión del modelo LSTM mediante holdout validation.
+ *
+ * Métrica 1 — split 80/20, horizonte dinámico (≈ 20 % de la serie):
+ *   Mide la calidad de la predicción a corto plazo con la misma
+ *   proporción de datos que tendría en un contexto de producción.
+ *
+ * Métrica 2 — horizonte 30 días (o máximo disponible):
+ *   Re-entrena con los últimos 30 días reservados como test. Mide
+ *   concretamente la calidad del forecast a 30 días, que es el que
+ *   consume el dashboard.
+ *
+ * Ambas métricas aplican el mismo clamp + damped trend que producción.
  *
  * Ejecución:
  *   npm run validar:modelo
@@ -16,7 +25,9 @@ const prisma = new PrismaClient();
 
 const ITERACIONES = 500;
 const UMBRAL_ERROR = 0.01;
-const MIN_PUNTOS_VALIDACION = 28; // el doble del mínimo de producción
+const MIN_PUNTOS_VALIDACION = 28; // mínimo para validación (doble del mínimo de producción)
+// Mismo factor que AnaliticaService — debe mantenerse sincronizado.
+const FACTOR_AMORTIGUACION = 0.9;
 
 // ─── helpers (copia fiel de AnaliticaService) ────────────────────────────────
 
@@ -83,6 +94,15 @@ function construirSerie(mapaFecha: Map<string, number>): number[] {
     .map((f) => mapaFecha.get(f)!);
 }
 
+// Aplica clamp [0, 1.2] + damped trend idéntico al de producción.
+function aplicarDamping(forecastNorm: number[], promSmooth: number): number[] {
+  return forecastNorm.map((v, i) => {
+    const clamped = Math.min(Math.max(v, 0), 1.2);
+    const peso = Math.pow(FACTOR_AMORTIGUACION, i);
+    return clamped * peso + promSmooth * (1 - peso);
+  });
+}
+
 // ─── métricas ────────────────────────────────────────────────────────────────
 
 function mae(real: number[], predicho: number[]): number {
@@ -110,13 +130,19 @@ function precisionDireccional(real: number[], predicho: number[]): number {
   return (aciertos / (n - 1)) * 100;
 }
 
-// ─── main ────────────────────────────────────────────────────────────────────
+// ─── tipos ───────────────────────────────────────────────────────────────────
 
 interface MetricasProducto {
   nombre: string;
+  // Métrica 1: split 80/20, horizonte dinámico
   mae: number;
   rmse: number;
   dirAcc: number;
+  horizonteM1: number;    // días reales de validación (≈ 20% de la serie)
+  // Métrica 2: horizonte 30 d (o máximo posible con ≥ MIN_PUNTOS_VALIDACION en train)
+  mae30: number | null;
+  rmse30: number | null;
+  horizonte30: number;    // días reales usados (min(30, serie-MIN_PUNTOS_VALIDACION))
   errorEntrenamiento: number;
   puntosHistoricos: number;
 }
@@ -126,6 +152,8 @@ interface ResultadoSucursal {
   validados: MetricasProducto[];
   omitidos: number;
 }
+
+// ─── validación por sucursal ──────────────────────────────────────────────────
 
 async function validarSucursal(idSucursal: number, nomSucursal: string): Promise<ResultadoSucursal> {
   console.log(`  → Procesando "${nomSucursal}"...`);
@@ -139,37 +167,29 @@ async function validarSucursal(idSucursal: number, nomSucursal: string): Promise
   for (const [idProducto, mapaFecha] of mapaConsumos.entries()) {
     const serie = construirSerie(mapaFecha);
 
-    if (serie.length < MIN_PUNTOS_VALIDACION) {
-      omitidos++;
-      continue;
-    }
+    if (serie.length < MIN_PUNTOS_VALIDACION) { omitidos++; continue; }
 
     const max = Math.max(...serie);
-    if (max === 0) {
-      omitidos++;
-      continue;
-    }
+    if (max === 0) { omitidos++; continue; }
 
-    // División 80/20
+    // ── Métrica 1: split 80/20 ──────────────────────────────────────────────
     const splitIdx = Math.floor(serie.length * 0.8);
     const trainSerie = serie.slice(0, splitIdx);
-    const valActual = serie.slice(splitIdx);
-    const valLen = valActual.length;
+    const valActual  = serie.slice(splitIdx);
+    const valLen     = valActual.length;
 
-    if (valLen < 2) {
-      omitidos++;
-      continue;
-    }
+    if (valLen < 2) { omitidos++; continue; }
 
-    // Normalizar solo con max del conjunto de entrenamiento (evitar data leakage)
     const trainMax = Math.max(...trainSerie);
-    if (trainMax === 0) {
-      omitidos++;
-      continue;
-    }
+    if (trainMax === 0) { omitidos++; continue; }
 
-    const trainNorm = trainSerie.map((v) => v / trainMax);
+    const trainNorm   = trainSerie.map((v) => v / trainMax);
     const trainSmooth = suavizarSerie(trainNorm);
+    const promSmooth  = trainSmooth.reduce((a, b) => a + b, 0) / trainSmooth.length;
+
+    let m1Mae = 0, m1Rmse = 0, m1Dir = 0, m1Err = 0;
+    let m2Mae: number | null = null, m2Rmse: number | null = null;
+    const horizonte30 = Math.min(30, serie.length - MIN_PUNTOS_VALIDACION);
 
     try {
       const red = new (brain.recurrent.LSTMTimeStep as any)({
@@ -183,87 +203,177 @@ async function validarSucursal(idSucursal: number, nomSucursal: string): Promise
         errorThresh: UMBRAL_ERROR,
         log: false,
       });
+      m1Err = (resultado.error as number) ?? 0;
 
-      // Proyectar tantos pasos como puntos de validación
-      const forecastNorm: number[] = red.forecast(trainSmooth, valLen);
-      const forecastActual = forecastNorm.map((v: number) => Math.max(0, v * trainMax));
+      // Clamp + damping idéntico a producción
+      const forecastNorm1: number[] = red.forecast(trainSmooth, valLen);
+      const forecastDamped1 = aplicarDamping(forecastNorm1, promSmooth);
+      const forecastActual1 = forecastDamped1.map((v) => Math.max(0, v * trainMax));
 
-      validados.push({
-        nombre: nombreProducto.get(idProducto) ?? `prod_${idProducto}`,
-        mae: mae(valActual, forecastActual),
-        rmse: rmse(valActual, forecastActual),
-        dirAcc: precisionDireccional(valActual, forecastActual),
-        errorEntrenamiento: (resultado.error as number) ?? 0,
-        puntosHistoricos: serie.length,
-      });
+      m1Mae  = mae(valActual, forecastActual1);
+      m1Rmse = rmse(valActual, forecastActual1);
+      m1Dir  = precisionDireccional(valActual, forecastActual1);
     } catch {
       omitidos++;
+      continue;
     }
+
+    // ── Métrica 2: horizonte 30 d (re-entrena con split fijo al final) ──────
+    if (horizonte30 >= 2) {
+      const splitIdx2  = serie.length - horizonte30;
+      const trainSerie2 = serie.slice(0, splitIdx2);
+      const valActual2  = serie.slice(splitIdx2);
+      const trainMax2   = Math.max(...trainSerie2);
+
+      if (trainMax2 > 0) {
+        const trainNorm2   = trainSerie2.map((v) => v / trainMax2);
+        const trainSmooth2 = suavizarSerie(trainNorm2);
+        const promSmooth2  = trainSmooth2.reduce((a, b) => a + b, 0) / trainSmooth2.length;
+
+        try {
+          const red2 = new (brain.recurrent.LSTMTimeStep as any)({
+            inputSize: 1,
+            hiddenLayers: [10, 5],
+            outputSize: 1,
+          });
+          red2.train([trainSmooth2], {
+            iterations: ITERACIONES,
+            errorThresh: UMBRAL_ERROR,
+            log: false,
+          });
+
+          const forecastNorm2: number[] = red2.forecast(trainSmooth2, horizonte30);
+          const forecastDamped2 = aplicarDamping(forecastNorm2, promSmooth2);
+          const forecastActual2 = forecastDamped2.map((v) => Math.max(0, v * trainMax2));
+
+          m2Mae  = mae(valActual2, forecastActual2);
+          m2Rmse = rmse(valActual2, forecastActual2);
+        } catch {
+          // Métrica 2 no disponible para este producto
+        }
+      }
+    }
+
+    validados.push({
+      nombre: nombreProducto.get(idProducto) ?? `prod_${idProducto}`,
+      mae: m1Mae,
+      rmse: m1Rmse,
+      dirAcc: m1Dir,
+      horizonteM1: valLen,
+      mae30: m2Mae,
+      rmse30: m2Rmse,
+      horizonte30,
+      errorEntrenamiento: m1Err,
+      puntosHistoricos: serie.length,
+    });
   }
 
   return { nombre: nomSucursal, validados, omitidos };
 }
 
-function formatear(n: number, dec: number): string {
-  return n.toFixed(dec).padStart(6);
+// ─── reporte ─────────────────────────────────────────────────────────────────
+
+function fmt(n: number, dec: number): string {
+  return n.toFixed(dec).padStart(7);
 }
 
 function generarReporte(resultados: ResultadoSucursal[]): string {
-  const lineas: string[] = [];
+  const L: string[] = [];
 
-  lineas.push('══════════════════════════════════════════════════════');
-  lineas.push('  VALIDACIÓN DEL MODELO LSTM — SISTEMA CENDENT');
-  lineas.push('══════════════════════════════════════════════════════');
-  lineas.push('');
+  L.push('══════════════════════════════════════════════════════════');
+  L.push('  VALIDACIÓN DEL MODELO LSTM — SISTEMA CENDENT');
+  L.push('  (clamp [0, 1.2] + damped trend factor=0.9)');
+  L.push('══════════════════════════════════════════════════════════');
+  L.push('');
 
-  let totalValidados = 0;
-  let sumMae = 0;
-  let sumRmse = 0;
-  let sumDir = 0;
+  let totValidados = 0;
+  let sumMae1 = 0, sumRmse1 = 0, sumDir = 0;
+  let totValidados30 = 0;
+  let sumMae30 = 0, sumRmse30 = 0;
 
   for (const r of resultados) {
     const n = r.validados.length;
-    const avgMae = n > 0 ? r.validados.reduce((a, p) => a + p.mae, 0) / n : 0;
-    const avgRmse = n > 0 ? r.validados.reduce((a, p) => a + p.rmse, 0) / n : 0;
-    const avgDir = n > 0 ? r.validados.reduce((a, p) => a + p.dirAcc, 0) / n : 0;
-    const avgErr = n > 0 ? r.validados.reduce((a, p) => a + p.errorEntrenamiento, 0) / n : 0;
+    const v30 = r.validados.filter((p) => p.mae30 !== null);
+    const n30 = v30.length;
 
-    lineas.push(`  Sucursal: ${r.nombre}`);
-    lineas.push('  ─────────────────────────────────────────────────');
-    lineas.push(`  Productos validados        : ${String(n).padStart(4)}`);
-    lineas.push(`  Productos omitidos (< ${MIN_PUNTOS_VALIDACION}d) : ${String(r.omitidos).padStart(4)}`);
-    lineas.push(`  MAE promedio               : ${formatear(avgMae, 2)} u/día`);
-    lineas.push(`  RMSE promedio              : ${formatear(avgRmse, 2)} u/día`);
-    lineas.push(`  Precisión direccional      : ${formatear(avgDir, 1)} %`);
-    lineas.push(`  Error de entrenamiento avg :${formatear(avgErr, 4)}`);
-    lineas.push('');
+    const avgMae1  = n > 0 ? r.validados.reduce((a, p) => a + p.mae, 0) / n : 0;
+    const avgRmse1 = n > 0 ? r.validados.reduce((a, p) => a + p.rmse, 0) / n : 0;
+    const avgDir   = n > 0 ? r.validados.reduce((a, p) => a + p.dirAcc, 0) / n : 0;
+    const avgErr   = n > 0 ? r.validados.reduce((a, p) => a + p.errorEntrenamiento, 0) / n : 0;
+    const avgHor1  = n > 0 ? Math.round(r.validados.reduce((a, p) => a + p.horizonteM1, 0) / n) : 0;
+    const avgMae30  = n30 > 0 ? v30.reduce((a, p) => a + (p.mae30 ?? 0), 0) / n30 : null;
+    const avgRmse30 = n30 > 0 ? v30.reduce((a, p) => a + (p.rmse30 ?? 0), 0) / n30 : null;
+    const avgHor30  = n30 > 0 ? Math.round(v30.reduce((a, p) => a + p.horizonte30, 0) / n30) : 0;
 
-    totalValidados += n;
-    sumMae += avgMae * n;
-    sumRmse += avgRmse * n;
-    sumDir += avgDir * n;
+    L.push(`  Sucursal: ${r.nombre}`);
+    L.push('  ──────────────────────────────────────────────────────');
+    L.push(`  Productos validados             : ${String(n).padStart(4)}`);
+    L.push(`  Productos omitidos (< ${MIN_PUNTOS_VALIDACION}d)      : ${String(r.omitidos).padStart(4)}`);
+    L.push('');
+    L.push(`  ── Métrica 1: horizonte dinámico (split 80/20) ──`);
+    L.push(`  Horizonte promedio              : ${String(avgHor1).padStart(4)} d`);
+    L.push(`  MAE promedio                    :${fmt(avgMae1, 2)} u/día`);
+    L.push(`  RMSE promedio                   :${fmt(avgRmse1, 2)} u/día`);
+    L.push(`  Precisión direccional           :${fmt(avgDir, 1)} %`);
+    L.push(`  Error de entrenamiento avg      :${fmt(avgErr, 4)}`);
+    L.push('');
+    if (n30 > 0 && avgMae30 !== null && avgRmse30 !== null) {
+      L.push(`  ── Métrica 2: horizonte 30 d (o máximo posible) ─`);
+      L.push(`  Productos con métrica 30d       : ${String(n30).padStart(4)}`);
+      L.push(`  Horizonte promedio              : ${String(avgHor30).padStart(4)} d`);
+      L.push(`  MAE (30d) promedio              :${fmt(avgMae30, 2)} u/día`);
+      L.push(`  RMSE (30d) promedio             :${fmt(avgRmse30, 2)} u/día`);
+    } else {
+      L.push(`  ── Métrica 2: horizonte 30 d ─────────────────────`);
+      L.push(`  Series insuficientes para métrica 30d (necesita ≥ ${MIN_PUNTOS_VALIDACION + 2} puntos)`);
+    }
+    L.push('');
+
+    totValidados += n;
+    sumMae1  += avgMae1  * n;
+    sumRmse1 += avgRmse1 * n;
+    sumDir   += avgDir   * n;
+    totValidados30 += n30;
+    sumMae30  += (avgMae30  ?? 0) * n30;
+    sumRmse30 += (avgRmse30 ?? 0) * n30;
   }
 
-  const globalMae = totalValidados > 0 ? sumMae / totalValidados : 0;
-  const globalRmse = totalValidados > 0 ? sumRmse / totalValidados : 0;
-  const globalDir = totalValidados > 0 ? sumDir / totalValidados : 0;
+  const gMae1  = totValidados  > 0 ? sumMae1  / totValidados  : 0;
+  const gRmse1 = totValidados  > 0 ? sumRmse1 / totValidados  : 0;
+  const gDir   = totValidados  > 0 ? sumDir   / totValidados  : 0;
+  const gMae30  = totValidados30 > 0 ? sumMae30  / totValidados30 : null;
+  const gRmse30 = totValidados30 > 0 ? sumRmse30 / totValidados30 : null;
 
-  lineas.push('──────────────────────────────────────────────────');
-  lineas.push('  RESUMEN GLOBAL');
-  lineas.push('──────────────────────────────────────────────────');
-  lineas.push(`  Total productos validados  : ${String(totalValidados).padStart(4)}`);
-  lineas.push(`  MAE global                 : ${formatear(globalMae, 2)} u/día`);
-  lineas.push(`  RMSE global                : ${formatear(globalRmse, 2)} u/día`);
-  lineas.push(`  Precisión direccional      : ${formatear(globalDir, 1)} %`);
-  lineas.push('══════════════════════════════════════════════════════');
-  lineas.push(`  Generado: ${new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' })}`);
-  lineas.push('══════════════════════════════════════════════════════');
+  L.push('──────────────────────────────────────────────────────────');
+  L.push('  RESUMEN GLOBAL');
+  L.push('──────────────────────────────────────────────────────────');
+  L.push(`  Total productos validados       : ${String(totValidados).padStart(4)}`);
+  L.push('');
+  L.push('  ── Métrica 1 (horizonte dinámico) ────────────────');
+  L.push(`  MAE global                      :${fmt(gMae1, 2)} u/día`);
+  L.push(`  RMSE global                     :${fmt(gRmse1, 2)} u/día`);
+  L.push(`  Precisión direccional           :${fmt(gDir, 1)} %`);
+  L.push('');
+  if (gMae30 !== null && gRmse30 !== null) {
+    L.push('  ── Métrica 2 (horizonte 30 días) ─────────────────');
+    L.push(`  Productos con métrica 30d       : ${String(totValidados30).padStart(4)}`);
+    L.push(`  MAE global (30d)                :${fmt(gMae30, 2)} u/día`);
+    L.push(`  RMSE global (30d)               :${fmt(gRmse30, 2)} u/día`);
+  } else {
+    L.push('  ── Métrica 2 (horizonte 30 días) ─────────────────');
+    L.push('  Sin suficientes datos para métrica 30d');
+  }
+  L.push('══════════════════════════════════════════════════════════');
+  L.push(`  Generado: ${new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' })}`);
+  L.push('══════════════════════════════════════════════════════════');
 
-  return lineas.join('\n');
+  return L.join('\n');
 }
 
+// ─── main ────────────────────────────────────────────────────────────────────
+
 async function main() {
-  console.log('\nIniciando validación del modelo LSTM...\n');
+  console.log('\nIniciando validación del modelo LSTM (con damping)...\n');
 
   const sucursales = await prisma.sucursales.findMany({
     where: { estado: { not: false } },
@@ -277,7 +387,6 @@ async function main() {
   }
 
   const resultados: ResultadoSucursal[] = [];
-
   for (const suc of sucursales) {
     const res = await validarSucursal(suc.id_sucursal, suc.nom_sucursal);
     resultados.push(res);
@@ -291,7 +400,7 @@ async function main() {
   if (!fs.existsSync(docsDir)) fs.mkdirSync(docsDir, { recursive: true });
 
   const fechaArchivo = new Date().toISOString().slice(0, 10);
-  const rutaArchivo = path.join(docsDir, `validacion-modelo-${fechaArchivo}.txt`);
+  const rutaArchivo  = path.join(docsDir, `validacion-modelo-${fechaArchivo}.txt`);
   fs.writeFileSync(rutaArchivo, reporte, 'utf-8');
   console.log(`\nReporte guardado en: docs/validacion-modelo-${fechaArchivo}.txt\n`);
 

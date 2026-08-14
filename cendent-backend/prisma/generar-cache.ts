@@ -3,10 +3,14 @@ import * as brain from 'brain.js';
 
 const prisma = new PrismaClient();
 
-const ITERACIONES     = 500;
-const UMBRAL_ERROR    = 0.01;
+const ITERACIONES      = 500;
+const UMBRAL_ERROR     = 0.01;
 const MIN_PUNTOS_SERIE = 14;
-const HORIZONTE_DIAS  = 30;
+const HORIZONTE_DIAS   = 30;
+// Mismo factor que AnaliticaService: frena la divergencia recursiva del LSTM.
+const FACTOR_AMORTIGUACION = 0.9;
+// Productos sin egreso en los últimos VENTANA_ACTIVIDAD_DIAS días se omiten.
+const VENTANA_ACTIVIDAD_DIAS = 45;
 
 // ─── Misma lógica que AnaliticaService ───────────────────────────────────────
 
@@ -128,18 +132,52 @@ async function generarYGuardarSucursal(idSucursal: number, nomSucursal: string) 
 
     try {
       const mapaFecha = mapaConsumos.get(idProducto)!;
-      const serie     = Array.from(mapaFecha.keys()).sort().map(f => mapaFecha.get(f)!);
+      const fechasOrdenadas = Array.from(mapaFecha.keys()).sort();
+
+      // Compuerta de actividad: misma lógica que AnaliticaService.
+      const ultimaFecha     = fechasOrdenadas[fechasOrdenadas.length - 1];
+      const diasInactividad = (Date.now() - new Date(ultimaFecha).getTime()) / 86_400_000;
+      if (diasInactividad > VENTANA_ACTIVIDAD_DIAS) {
+        process.stdout.write(` SKIP (inactivo ${Math.round(diasInactividad)}d)\n`);
+        continue;
+      }
+
+      rellenarDias(mapaFecha);
+      const serie = Array.from(mapaFecha.keys()).sort().map(f => mapaFecha.get(f)!);
       const max       = Math.max(...serie);
       const serieNorm = serie.map(v => v / max);
 
       const { red, smooth } = entrenarLSTM(serieNorm);
       const forecastNorm: number[] = red.forecast(smooth, HORIZONTE_DIAS);
-      const consumo30d = Math.round(forecastNorm.reduce((s, v) => s + v * max, 0) * 100) / 100;
 
-      const stockTotal    = stockMapa.get(idProducto) ?? 0;
-      const promDiario    = consumo30d / HORIZONTE_DIAS;
-      const diasQuiebre   = stockTotal === 0 ? 0 : promDiario > 0 ? Math.floor(stockTotal / promDiario) : 9999;
-      const sugerencia    = Math.max(0, Math.round((consumo30d - stockTotal) * 100) / 100);
+      // Clamp [0, 1.2] + damped trend hacia el promedio histórico normalizado.
+      // Idéntico a AnaliticaService.generarPrediccion para garantizar consistencia.
+      const promSmooth = smooth.reduce((a: number, b: number) => a + b, 0) / smooth.length;
+      const forecastDamped = forecastNorm.map((v: number, i: number) => {
+        const clamped = Math.min(Math.max(v, 0), 1.2);
+        const peso    = Math.pow(FACTOR_AMORTIGUACION, i);
+        return clamped * peso + promSmooth * (1 - peso);
+      });
+
+      const consumo30d = Math.round(
+        forecastDamped.reduce((s: number, v: number) => s + v * max, 0) * 100,
+      ) / 100;
+
+      // Desglose semanal (4 columnas): semanas 1-3 = 7 días, semana 4 = 9 días.
+      const prediccionSemanal = [0, 1, 2, 3].map((sem) => {
+        const inicio = sem * 7;
+        const fin    = sem === 3 ? HORIZONTE_DIAS : inicio + 7;
+        return (
+          Math.round(
+            forecastDamped.slice(inicio, fin).reduce((s: number, v: number) => s + v * max, 0) * 100,
+          ) / 100
+        );
+      });
+
+      const stockTotal  = stockMapa.get(idProducto) ?? 0;
+      const promDiario  = consumo30d / HORIZONTE_DIAS;
+      const diasQuiebre = stockTotal === 0 ? 0 : promDiario > 0 ? Math.floor(stockTotal / promDiario) : 9999;
+      const sugerencia  = Math.max(0, Math.round((consumo30d - stockTotal) * 100) / 100);
 
       predicciones.push({
         id_producto: idProducto,
@@ -148,6 +186,7 @@ async function generarYGuardarSucursal(idSucursal: number, nomSucursal: string) 
         consumo_predicho_30_dias: consumo30d,
         dias_para_quiebre: diasQuiebre,
         sugerencia_compra: sugerencia,
+        prediccion_semanal: prediccionSemanal,
       });
 
       process.stdout.write(' OK\n');

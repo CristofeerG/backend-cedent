@@ -12,6 +12,14 @@ const ITERACIONES = 500;
 const UMBRAL_ERROR = 0.01;
 const MIN_PUNTOS_SERIE = 14;
 const HORIZONTE_DIAS = 30;
+// Factor de amortiguamiento para el forecast recursivo del LSTM.
+// En el paso i, el valor normalizado predicho se "jala" hacia el promedio
+// histórico con peso (1 - 0.9^i), evitando la divergencia acumulada.
+const FACTOR_AMORTIGUACION = 0.9;
+// Productos sin ningún egreso en los últimos VENTANA_ACTIVIDAD_DIAS días se
+// omiten de la predicción: el LSTM, entrenado en histórico antiguo, generaría
+// consumo positivo para productos que en la práctica están inactivos.
+const VENTANA_ACTIVIDAD_DIAS = 45;
 
 @Injectable()
 export class AnaliticaService {
@@ -181,6 +189,15 @@ export class AnaliticaService {
     for (const [idProducto, mapaFecha] of mapaConsumos.entries()) {
       // Rellenar días sin consumo con 0 y ordenar cronológicamente
       const fechas = Array.from(mapaFecha.keys()).sort();
+
+      // Compuerta de actividad: si el último egreso real supera VENTANA_ACTIVIDAD_DIAS,
+      // el producto está inactivo → omitirlo evita que el LSTM prediga consumo basado
+      // en historial antiguo, lo que inflaría el total artificialmente.
+      const ultimaFechaConConsumo = fechas[fechas.length - 1];
+      const diasInactividad =
+        (Date.now() - new Date(ultimaFechaConConsumo).getTime()) / 86_400_000;
+      if (diasInactividad > VENTANA_ACTIVIDAD_DIAS) continue;
+
       if (fechas.length >= 2) {
         const cursor = new Date(fechas[0]);
         const ultima = new Date(fechas[fechas.length - 1]);
@@ -203,9 +220,38 @@ export class AnaliticaService {
 
       // Proyectar los próximos HORIZONTE_DIAS valores normalizados
       const forecastNorm: number[] = red.forecast(serieSmooth, HORIZONTE_DIAS);
+
+      // Promedio histórico normalizado: ancla del amortiguamiento
+      const promSmooth = serieSmooth.reduce((a, b) => a + b, 0) / serieSmooth.length;
+
+      // Clamp [0, 1.2] + damped trend: a medida que avanza el horizonte el
+      // valor se acerca al promedio histórico, frenando la divergencia recursiva.
+      const forecastDamped = forecastNorm.map((v, i) => {
+        const clamped = Math.min(Math.max(v, 0), 1.2);
+        const peso = Math.pow(FACTOR_AMORTIGUACION, i);
+        return clamped * peso + promSmooth * (1 - peso);
+      });
+
       const consumoPredicho30Dias = Math.round(
-        forecastNorm.reduce((suma, v) => suma + v * max, 0) * 100,
+        forecastDamped.reduce((suma, v) => suma + v * max, 0) * 100,
       ) / 100;
+
+      // Desglose semanal del forecast denormalizado.
+      // Semanas 1–3 = exactamente 7 días (índices 0-6, 7-13, 14-20).
+      // Semana 4    = días 22–30 (9 días): los 2 sobrantes del horizonte de
+      // 30 d se acumulan en el último bloque para que el gráfico siempre tenga
+      // exactamente 4 columnas sin un bloque parcial que distorsione la escala.
+      const prediccionSemanal = [0, 1, 2, 3].map((sem) => {
+        const inicio = sem * 7;
+        const fin = sem === 3 ? HORIZONTE_DIAS : inicio + 7;
+        return (
+          Math.round(
+            forecastDamped
+              .slice(inicio, fin)
+              .reduce((s, v) => s + v * max, 0) * 100,
+          ) / 100
+        );
+      });
 
       const stockTotal = stockPorProducto.get(idProducto) ?? 0;
       const promedioDiario = consumoPredicho30Dias / HORIZONTE_DIAS;
@@ -226,6 +272,7 @@ export class AnaliticaService {
         consumo_predicho_30_dias: consumoPredicho30Dias,
         dias_para_quiebre: diasParaQuiebre,
         sugerencia_compra: sugerenciaCompra,
+        prediccion_semanal: prediccionSemanal,
       });
     }
 

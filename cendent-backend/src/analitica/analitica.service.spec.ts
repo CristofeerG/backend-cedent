@@ -27,7 +27,10 @@ function generarMovimientos(
   idProducto = 1,
   cantidades?: number[],
 ): any[] {
-  const base = new Date('2024-01-01T08:00:00Z');
+  // Base reciente: el último movimiento cae hace ~5 días para pasar la
+  // compuerta de VENTANA_ACTIVIDAD_DIAS (60d) independientemente de cuándo
+  // se ejecute el test.
+  const base = new Date(Date.now() - (n + 5) * 86_400_000);
   return Array.from({ length: n }, (_, i) => {
     const fecha = new Date(base);
     fecha.setDate(base.getDate() + i);
@@ -281,13 +284,14 @@ describe('AnaliticaService', () => {
       mockUpsert();
 
       // Forzar que crearYEntrenarLSTM retorne un modelo cuyo forecast es todo ceros
-      // consumoPredicho30Dias = 0 → promedioDiario = 0 → diasParaQuiebre = 9999
+      // Y serieSmooth también cero → promSmooth = 0 → damping no introduce consumo
+      // → consumoPredicho30Dias = 0 → promedioDiario = 0 → diasParaQuiebre = 9999
       (service as any).crearYEntrenarLSTM = jest.fn().mockReturnValue({
         red: {
           forecast: jest.fn().mockReturnValue(Array(30).fill(0)),
           run: jest.fn().mockReturnValue(0),
         },
-        serieSmooth: Array(20).fill(0.1),
+        serieSmooth: Array(20).fill(0),
         errorEntrenamiento: 0.001,
       });
 

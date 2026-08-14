@@ -48,13 +48,17 @@ class ApiService {
 
   void invalidateCache() => _cache.clear();
 
-  Future<({bool ok, String? errorMsg, dynamic data})> _postWithData(String path, Map<String, dynamic> body) async {
+  Future<({bool ok, String? errorMsg, dynamic data})> _postWithData(
+    String path,
+    Map<String, dynamic> body, {
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
     try {
       final res = await http.post(
         Uri.parse('$_base$path'),
         headers: await _headers(),
         body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(timeout);
       if (res.statusCode == 401) {
         await _auth.logout();
         return (ok: false, errorMsg: 'Sesión expirada', data: null);
@@ -445,5 +449,19 @@ class ApiService {
   Future<Map<String, dynamic>?> entrenar(int idSucursal) async {
     final data = await _get('/analitica/entrenar/$idSucursal');
     return data is Map ? Map<String, dynamic>.from(data) : null;
+  }
+
+  /// POST /analitica/refrescar/:idSucursal
+  /// Fuerza reentrenamiento LSTM y actualiza el caché de predicción.
+  /// Puede tardar varios minutos (≈1 min por cada 20 productos).
+  /// Timeout extendido a 20 min para cubrir sucursales con 350+ productos.
+  Future<({bool ok, String? errorMsg, dynamic data})> refrescarPrediccion(
+    int idSucursal,
+  ) async {
+    return _postWithData(
+      '/analitica/refrescar/$idSucursal',
+      {},
+      timeout: const Duration(minutes: 20),
+    );
   }
 }

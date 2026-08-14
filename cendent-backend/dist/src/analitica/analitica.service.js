@@ -51,6 +51,8 @@ const ITERACIONES = 500;
 const UMBRAL_ERROR = 0.01;
 const MIN_PUNTOS_SERIE = 14;
 const HORIZONTE_DIAS = 30;
+const FACTOR_AMORTIGUACION = 0.9;
+const VENTANA_ACTIVIDAD_DIAS = 45;
 let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
     prisma;
     logger = new common_1.Logger(AnaliticaService_1.name);
@@ -184,6 +186,10 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
         const predicciones = [];
         for (const [idProducto, mapaFecha] of mapaConsumos.entries()) {
             const fechas = Array.from(mapaFecha.keys()).sort();
+            const ultimaFechaConConsumo = fechas[fechas.length - 1];
+            const diasInactividad = (Date.now() - new Date(ultimaFechaConConsumo).getTime()) / 86_400_000;
+            if (diasInactividad > VENTANA_ACTIVIDAD_DIAS)
+                continue;
             if (fechas.length >= 2) {
                 const cursor = new Date(fechas[0]);
                 const ultima = new Date(fechas[fechas.length - 1]);
@@ -204,7 +210,20 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
             const serieNorm = serie.map((v) => v / max);
             const { red, serieSmooth } = this.crearYEntrenarLSTM(serieNorm);
             const forecastNorm = red.forecast(serieSmooth, HORIZONTE_DIAS);
-            const consumoPredicho30Dias = Math.round(forecastNorm.reduce((suma, v) => suma + v * max, 0) * 100) / 100;
+            const promSmooth = serieSmooth.reduce((a, b) => a + b, 0) / serieSmooth.length;
+            const forecastDamped = forecastNorm.map((v, i) => {
+                const clamped = Math.min(Math.max(v, 0), 1.2);
+                const peso = Math.pow(FACTOR_AMORTIGUACION, i);
+                return clamped * peso + promSmooth * (1 - peso);
+            });
+            const consumoPredicho30Dias = Math.round(forecastDamped.reduce((suma, v) => suma + v * max, 0) * 100) / 100;
+            const prediccionSemanal = [0, 1, 2, 3].map((sem) => {
+                const inicio = sem * 7;
+                const fin = sem === 3 ? HORIZONTE_DIAS : inicio + 7;
+                return (Math.round(forecastDamped
+                    .slice(inicio, fin)
+                    .reduce((s, v) => s + v * max, 0) * 100) / 100);
+            });
             const stockTotal = stockPorProducto.get(idProducto) ?? 0;
             const promedioDiario = consumoPredicho30Dias / HORIZONTE_DIAS;
             const diasParaQuiebre = stockTotal === 0
@@ -220,6 +239,7 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
                 consumo_predicho_30_dias: consumoPredicho30Dias,
                 dias_para_quiebre: diasParaQuiebre,
                 sugerencia_compra: sugerenciaCompra,
+                prediccion_semanal: prediccionSemanal,
             });
         }
         predicciones.sort((a, b) => a.dias_para_quiebre - b.dias_para_quiebre);

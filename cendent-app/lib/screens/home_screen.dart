@@ -173,6 +173,13 @@ class _HomeScreenState extends State<HomeScreen> {
   List<ForecastBar> _forecast = [];
   int _totalPredicho30 = 0;
   int _totalReal4Sem = 0;
+  // Productos con egreso EGRESO_KIT / EGRESO_DIRECTO en los últimos 28 días.
+  // Se usa para alinear el universo de la predicción con el del consumo real.
+  Set<int> _productosActivos4Sem = {};
+  // Suma semanal del forecast LSTM para los productos activos:
+  // [sem1 (d1-7), sem2 (d8-14), sem3 (d15-21), sem4 (d22-30)].
+  // Viene directamente del campo prediccion_semanal del backend.
+  List<double> _semPredicha4 = [0, 0, 0, 0];
 
   @override
   void initState() {
@@ -335,9 +342,14 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }).toList();
 
-    // Consumo real últimas 4 semanas para el gráfico
+    // Consumo real últimas 4 semanas para el gráfico.
+    // También construye _productosActivos4Sem: el conjunto de id_producto con
+    // al menos un egreso en los últimos 28 días dentro de los 200 registros.
+    // Ese conjunto se usa luego en _processPrediccion para filtrar la proyección
+    // al mismo universo de productos y hacer la comparación consistente.
     final hace4sem = hoy.subtract(const Duration(days: 28));
     final semanas = [0.0, 0.0, 0.0, 0.0];
+    final productosActivos = <int>{};
     for (final m in movs) {
       final tipo = m['tipo_mov'] as String?;
       if (tipo != 'EGRESO_KIT' && tipo != 'EGRESO_DIRECTO') continue;
@@ -346,6 +358,9 @@ class _HomeScreenState extends State<HomeScreen> {
       try {
         final fecha = DateTime.parse(fechaStr).toLocal();
         if (fecha.isBefore(hace4sem)) continue;
+        // Capturar id_producto del lote asociado al movimiento activo.
+        final idProd = (m['lotes']?['id_producto'] as num?)?.toInt();
+        if (idProd != null) productosActivos.add(idProd);
         final semIdx = fecha.difference(hace4sem).inDays ~/ 7;
         if (semIdx >= 0 && semIdx < 4) {
           semanas[semIdx] += _toDouble(m['cantidad']);
@@ -353,6 +368,7 @@ class _HomeScreenState extends State<HomeScreen> {
       } catch (_) {}
     }
     _totalReal4Sem = semanas.fold(0, (a, b) => a + b.round());
+    _productosActivos4Sem = productosActivos;
   }
 
   void _processPrediccion(Map<String, dynamic>? pred, List<dynamic>? movs) {
@@ -372,10 +388,34 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }).toList();
 
-      // Total predicho 30 días (suma de todos los productos)
-      _totalPredicho30 = (pred['predicciones'] as List<dynamic>? ?? [])
+      // Total predicho 30 días: solo los productos que tuvieron egreso real
+      // en los últimos 28 días (_productosActivos4Sem). Esto alinea el universo
+      // de la proyección con el del consumo real y hace la variación comparable.
+      // Si no hubo consumo reciente, la lista queda vacía y el total en 0.
+      final prediccionesActivas = _productosActivos4Sem.isEmpty
+          ? <dynamic>[]
+          : (pred['predicciones'] as List<dynamic>? ?? [])
+              .where((p) {
+                final idProd = (p['id_producto'] as num?)?.toInt();
+                return idProd != null && _productosActivos4Sem.contains(idProd);
+              })
+              .toList();
+      _totalPredicho30 = prediccionesActivas
           .fold<double>(0, (s, p) => s + _toDouble(p['consumo_predicho_30_dias']))
           .round();
+
+      // Suma semanal del modelo, producto a producto, para las 4 semanas.
+      // Se usa en _buildForecast directamente: S+1=sem[0] .. S+4=sem[3].
+      final semPredicha = [0.0, 0.0, 0.0, 0.0];
+      for (final p in prediccionesActivas) {
+        final sems = p['prediccion_semanal'];
+        if (sems is List) {
+          for (int i = 0; i < 4 && i < sems.length; i++) {
+            semPredicha[i] += _toDouble(sems[i]);
+          }
+        }
+      }
+      _semPredicha4 = semPredicha;
     }
 
     // Barras del gráfico
@@ -403,37 +443,10 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    // Tasa de crecimiento histórica (S-3 → Actual), solo pares donde ambos > 0
-    final ratios = <double>[];
-    for (int i = 1; i < 4; i++) {
-      if (realSem[i - 1] > 0 && realSem[i] > 0) {
-        ratios.add(realSem[i] / realSem[i - 1]);
-      }
-    }
-    double tasa = ratios.length >= 2
-        ? ratios.reduce((a, b) => a + b) / ratios.length
-        : 1.05;
-    tasa = tasa.clamp(0.85, 1.20);
-
-    // Distribuir proyección total con tendencia: S+n = base × tasa^n, luego normalizar
-    final base = _totalPredicho30 / 4.0;
-    final raw0 = base;
-    final raw1 = base * tasa;
-    final raw2 = base * tasa * tasa;
-    final raw3 = base * tasa * tasa * tasa;
-    final rawSum = raw0 + raw1 + raw2 + raw3;
-    final List<int> proyecciones;
-    if (rawSum > 0 && _totalPredicho30 > 0) {
-      proyecciones = [
-        (raw0 / rawSum * _totalPredicho30).round(),
-        (raw1 / rawSum * _totalPredicho30).round(),
-        (raw2 / rawSum * _totalPredicho30).round(),
-        (raw3 / rawSum * _totalPredicho30).round(),
-      ];
-    } else {
-      final equal = (_totalPredicho30 / 4).round();
-      proyecciones = [equal, equal, equal, equal];
-    }
+    // S+1..S+4 vienen directamente del modelo LSTM (campo prediccion_semanal),
+    // sumados sobre todos los productos activos en _processPrediccion.
+    // No se usan ratios ni tasa heurística — el modelo ya tiene la tendencia.
+    final proyecciones = _semPredicha4.map((v) => v.round()).toList();
 
     final labels = ['S-3', 'S-2', 'S-1', 'Actual', 'S+1', 'S+2', 'S+3', 'S+4'];
     final values = [
@@ -655,6 +668,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               totalReal: _totalReal4Sem,
                               totalPredicho: _totalPredicho30,
                               loadingPrediccion: _loadingPrediccion,
+                              sinConsumoReciente: _productosActivos4Sem.isEmpty,
                               onRefresh: _loadData,
                               rol: widget.rol,
                               onDespacharKit: _despacharKit,
@@ -1094,6 +1108,8 @@ class _DashboardBody extends StatelessWidget {
   final int totalReal;
   final int totalPredicho;
   final bool loadingPrediccion;
+  // true cuando no hubo egresos en los últimos 28 días (universo vacío).
+  final bool sinConsumoReciente;
   final VoidCallback onRefresh;
   final VoidCallback? onDespacharKit;
   final VoidCallback? onRegistrarConsumo;
@@ -1115,6 +1131,7 @@ class _DashboardBody extends StatelessWidget {
     required this.totalReal,
     required this.totalPredicho,
     required this.loadingPrediccion,
+    required this.sinConsumoReciente,
     required this.onRefresh,
     required this.rol,
     this.onDespacharKit,
@@ -1145,14 +1162,14 @@ class _DashboardBody extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(flex: 155, child: _ForecastPanel(forecast: forecast, totalReal: totalReal, totalPredicho: totalPredicho, loading: loadingPrediccion)),
+                  Expanded(flex: 155, child: _ForecastPanel(forecast: forecast, totalReal: totalReal, totalPredicho: totalPredicho, loading: loadingPrediccion, sinConsumoReciente: sinConsumoReciente)),
                   const SizedBox(width: 20),
                   Expanded(flex: 100, child: _RiskPanel(risks: risks, loading: loadingPrediccion, onVerTodo: onVerAnalitica)),
                 ],
               ),
             )
           else ...[
-            _ForecastPanel(forecast: forecast, totalReal: totalReal, totalPredicho: totalPredicho, loading: loadingPrediccion),
+            _ForecastPanel(forecast: forecast, totalReal: totalReal, totalPredicho: totalPredicho, loading: loadingPrediccion, sinConsumoReciente: sinConsumoReciente),
             const SizedBox(height: 20),
             _RiskPanel(risks: risks, loading: loadingPrediccion, onVerTodo: onVerAnalitica),
           ],
@@ -1602,7 +1619,9 @@ class _ForecastPanel extends StatelessWidget {
   final int totalReal;
   final int totalPredicho;
   final bool loading;
-  const _ForecastPanel({required this.forecast, required this.totalReal, required this.totalPredicho, this.loading = false});
+  // true cuando no hubo egresos en los últimos 28 días.
+  final bool sinConsumoReciente;
+  const _ForecastPanel({required this.forecast, required this.totalReal, required this.totalPredicho, this.loading = false, this.sinConsumoReciente = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1634,7 +1653,7 @@ class _ForecastPanel extends StatelessWidget {
           const _PanelHeader(
             title: 'Predicción de consumo — próximos 30 días',
             aiBadge: true,
-            subtitle: 'Proyección de demanda por semana · modelo LSTM',
+            subtitle: 'Proyección de demanda por semana · productos con consumo reciente · modelo LSTM',
           ),
           const SizedBox(height: 18),
           Wrap(
@@ -1660,12 +1679,27 @@ class _ForecastPanel extends StatelessWidget {
                       ],
                     ),
                   )
-                : forecast.isEmpty
-                    ? const Center(child: Text('Sin datos de predicción', style: TextStyle(color: CendentColors.secondary)))
-                    : Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: forecast.map((b) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 5), child: _Bar(bar: b)))).toList(),
-                      ),
+                : sinConsumoReciente
+                    // Universo vacío: ningún producto con egreso en 28 días.
+                    // No hay base común con la predicción → evitar mostrar variación sin sentido.
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.info_outline_rounded, size: 32, color: CendentColors.secondary),
+                            SizedBox(height: 10),
+                            Text('Sin consumo reciente para proyectar', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: CendentColors.secondary)),
+                            SizedBox(height: 4),
+                            Text('No se registraron egresos en los últimos 28 días', style: TextStyle(fontSize: 12, color: CendentColors.secondary)),
+                          ],
+                        ),
+                      )
+                    : forecast.isEmpty
+                        ? const Center(child: Text('Sin datos de predicción', style: TextStyle(color: CendentColors.secondary)))
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: forecast.map((b) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 5), child: _Bar(bar: b)))).toList(),
+                          ),
           ),
           const SizedBox(height: 14),
           const Divider(height: 1, color: CendentColors.hairlineSoft),

@@ -6,4 +6,7 @@ export declare class AnaliticaController {
     prediccion(idSucursal: number): Promise<(import("./dto/resultado-entrenamiento.dto").ResultadoPrediccionDto & {
         generado_en?: Date;
     }) | null>;
+    refrescar(idSucursal: number): Promise<import("./dto/resultado-entrenamiento.dto").ResultadoPrediccionDto & {
+        generado_en: Date;
+    }>;
 }

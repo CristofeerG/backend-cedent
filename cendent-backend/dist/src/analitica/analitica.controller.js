@@ -30,6 +30,9 @@ let AnaliticaController = class AnaliticaController {
     prediccion(idSucursal) {
         return this.analiticaService.predecirDemanda(idSucursal);
     }
+    refrescar(idSucursal) {
+        return this.analiticaService.generarYGuardar(idSucursal);
+    }
 };
 exports.AnaliticaController = AnaliticaController;
 __decorate([
@@ -48,6 +51,18 @@ __decorate([
     __metadata("design:paramtypes", [Number]),
     __metadata("design:returntype", void 0)
 ], AnaliticaController.prototype, "prediccion", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({
+        summary: 'Forzar reentrenamiento LSTM y actualizar caché de predicción',
+        description: 'Lanza generarYGuardar() sincrónicamente. Con 350+ productos puede tardar varios minutos. ' +
+            'Retorna ResultadoPrediccionDto + generado_en con la fecha de actualización.',
+    }),
+    (0, common_1.Post)('refrescar/:id_sucursal'),
+    __param(0, (0, common_1.Param)('id_sucursal', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], AnaliticaController.prototype, "refrescar", null);
 exports.AnaliticaController = AnaliticaController = __decorate([
     (0, swagger_1.ApiTags)('Analítica'),
     (0, swagger_1.ApiBearerAuth)(),

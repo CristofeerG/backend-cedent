@@ -107,6 +107,7 @@ class _AnaliticaScreenState extends State<AnaliticaScreen> {
   final _api = ApiService();
   bool _loading = true;
   bool _loadingPrediccion = true;
+  bool _refrescando = false;
   String? _loadError;
   List<_APrediccion> _predicciones = [];
 
@@ -152,6 +153,41 @@ class _AnaliticaScreenState extends State<AnaliticaScreen> {
         _loadError = 'No se pudo obtener la predicción. Reintente.';
       });
     });
+  }
+
+  /// Fuerza el reentrenamiento del modelo y actualiza la lista sin recargar
+  /// desde el caché — usa directamente la respuesta del endpoint de refresco.
+  Future<void> _refrescar() async {
+    if (_refrescando) return;
+    setState(() => _refrescando = true);
+
+    final result = await _api.refrescarPrediccion(widget.idSucursal);
+    if (!mounted) return;
+
+    if (result.ok && result.data != null) {
+      final lista = (result.data['predicciones'] as List<dynamic>? ?? [])
+          .map<_APrediccion>(_aMapPrediccion)
+          .toList()
+        ..sort((a, b) => a.diasQuiebre.compareTo(b.diasQuiebre));
+      setState(() {
+        _predicciones = lista;
+        _loadingPrediccion = false;
+        _loadError = null;
+        _refrescando = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Predicción actualizada correctamente'),
+        backgroundColor: CendentColors.green,
+        duration: Duration(seconds: 3),
+      ));
+    } else {
+      setState(() => _refrescando = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result.errorMsg ?? 'Error al refrescar la predicción'),
+        backgroundColor: CendentColors.red,
+        duration: const Duration(seconds: 5),
+      ));
+    }
   }
 
   List<_APrediccion> get _visible {
@@ -237,7 +273,10 @@ class _AnaliticaScreenState extends State<AnaliticaScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const _APageHead(),
+                        _APageHead(
+                          refrescando: _refrescando,
+                          onRefrescar: _refrescar,
+                        ),
                         const SizedBox(height: 22),
                         _buildBody(),
                         const SizedBox(height: 8),
@@ -259,14 +298,16 @@ class _AnaliticaScreenState extends State<AnaliticaScreen> {
 //  PAGE HEAD
 // =============================================================================
 class _APageHead extends StatelessWidget {
-  const _APageHead();
+  final bool refrescando;
+  final VoidCallback? onRefrescar;
+  const _APageHead({required this.refrescando, this.onRefrescar});
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(
+        const Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -295,6 +336,8 @@ class _APageHead extends StatelessWidget {
             ],
           ),
         ),
+        if (onRefrescar != null)
+          _ARefrescarBtn(loading: refrescando, onTap: onRefrescar!),
       ],
     );
   }
@@ -325,6 +368,68 @@ class _AIaBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+//  BOTÓN ACTUALIZAR PREDICCIÓN
+// =============================================================================
+class _ARefrescarBtn extends StatefulWidget {
+  final bool loading;
+  final VoidCallback onTap;
+  const _ARefrescarBtn({required this.loading, required this.onTap});
+  @override
+  State<_ARefrescarBtn> createState() => _ARefrescarBtnState();
+}
+
+class _ARefrescarBtnState extends State<_ARefrescarBtn> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final loading = widget.loading;
+    return MouseRegion(
+      cursor: loading ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: loading ? null : widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: (loading || _hover) ? CendentColors.blueTint : CendentColors.card,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: CendentColors.blueLight),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (loading)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.8,
+                    color: CendentColors.primary,
+                  ),
+                )
+              else
+                const Icon(Icons.sync_rounded, size: 16, color: CendentColors.primary),
+              const SizedBox(width: 8),
+              Text(
+                loading ? 'Actualizando…' : 'Actualizar predicción',
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: CendentColors.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

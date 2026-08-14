@@ -18,6 +18,7 @@ export declare class DemandaProductoDto {
     consumo_predicho_30_dias: number;
     dias_para_quiebre: number;
     sugerencia_compra: number;
+    prediccion_semanal: number[];
 }
 export declare class ResultadoPrediccionDto {
     id_sucursal: number;

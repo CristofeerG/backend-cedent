@@ -20,7 +20,27 @@ export class MovimientosService {
     return this.prisma.movimientos.findMany({
       where: hasFilter ? { lotes: lotesWhere } : undefined,
       include: {
-        lotes: { include: { productos: true, sucursales: true } },
+        lotes: {
+          include: {
+            productos: true,
+            sucursales: true,
+            detalle_transferencia: {
+              take: 1,
+              include: {
+                transferencias: {
+                  include: {
+                    sucursales_transferencias_id_sucursal_origenTosucursales: {
+                      select: { nom_sucursal: true },
+                    },
+                    sucursales_transferencias_id_sucursal_destinoTosucursales: {
+                      select: { nom_sucursal: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         usuarios: true,
         kits: true,
       },

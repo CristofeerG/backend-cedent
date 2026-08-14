@@ -291,6 +291,16 @@ export class TransferenciasService {
           },
         });
 
+        // Vincular el lote destino con la transferencia para que el historial
+        // de movimientos pueda mostrar el origen y destino correctamente.
+        await tx.detalle_transferencia.create({
+          data: {
+            id_transferencia: transferencia.id_transferencia,
+            id_lote: loteResultante.id_lote,
+            cantidad: cantidadRecibida,
+          },
+        });
+
         lotesCreados.push(loteResultante);
       }
 

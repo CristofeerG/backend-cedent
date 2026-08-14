@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -23,5 +23,16 @@ export class AnaliticaController {
   @Get('prediccion/:id_sucursal')
   prediccion(@Param('id_sucursal', ParseIntPipe) idSucursal: number) {
     return this.analiticaService.predecirDemanda(idSucursal);
+  }
+
+  @ApiOperation({
+    summary: 'Forzar reentrenamiento LSTM y actualizar caché de predicción',
+    description:
+      'Lanza generarYGuardar() sincrónicamente. Con 350+ productos puede tardar varios minutos. ' +
+      'Retorna ResultadoPrediccionDto + generado_en con la fecha de actualización.',
+  })
+  @Post('refrescar/:id_sucursal')
+  refrescar(@Param('id_sucursal', ParseIntPipe) idSucursal: number) {
+    return this.analiticaService.generarYGuardar(idSucursal);
   }
 }

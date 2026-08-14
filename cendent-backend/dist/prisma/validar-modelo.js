@@ -41,6 +41,7 @@ const prisma = new client_1.PrismaClient();
 const ITERACIONES = 500;
 const UMBRAL_ERROR = 0.01;
 const MIN_PUNTOS_VALIDACION = 28;
+const FACTOR_AMORTIGUACION = 0.9;
 function suavizarSerie(serie) {
     return serie.map((_, i) => {
         const inicio = Math.max(0, i - 2);
@@ -96,6 +97,13 @@ function construirSerie(mapaFecha) {
     return Array.from(mapaFecha.keys())
         .sort()
         .map((f) => mapaFecha.get(f));
+}
+function aplicarDamping(forecastNorm, promSmooth) {
+    return forecastNorm.map((v, i) => {
+        const clamped = Math.min(Math.max(v, 0), 1.2);
+        const peso = Math.pow(FACTOR_AMORTIGUACION, i);
+        return clamped * peso + promSmooth * (1 - peso);
+    });
 }
 function mae(real, predicho) {
     const n = Math.min(real.length, predicho.length);
@@ -155,6 +163,10 @@ async function validarSucursal(idSucursal, nomSucursal) {
         }
         const trainNorm = trainSerie.map((v) => v / trainMax);
         const trainSmooth = suavizarSerie(trainNorm);
+        const promSmooth = trainSmooth.reduce((a, b) => a + b, 0) / trainSmooth.length;
+        let m1Mae = 0, m1Rmse = 0, m1Dir = 0, m1Err = 0;
+        let m2Mae = null, m2Rmse = null;
+        const horizonte30 = Math.min(30, serie.length - MIN_PUNTOS_VALIDACION);
         try {
             const red = new brain.recurrent.LSTMTimeStep({
                 inputSize: 1,
@@ -166,73 +178,153 @@ async function validarSucursal(idSucursal, nomSucursal) {
                 errorThresh: UMBRAL_ERROR,
                 log: false,
             });
-            const forecastNorm = red.forecast(trainSmooth, valLen);
-            const forecastActual = forecastNorm.map((v) => Math.max(0, v * trainMax));
-            validados.push({
-                nombre: nombreProducto.get(idProducto) ?? `prod_${idProducto}`,
-                mae: mae(valActual, forecastActual),
-                rmse: rmse(valActual, forecastActual),
-                dirAcc: precisionDireccional(valActual, forecastActual),
-                errorEntrenamiento: resultado.error ?? 0,
-                puntosHistoricos: serie.length,
-            });
+            m1Err = resultado.error ?? 0;
+            const forecastNorm1 = red.forecast(trainSmooth, valLen);
+            const forecastDamped1 = aplicarDamping(forecastNorm1, promSmooth);
+            const forecastActual1 = forecastDamped1.map((v) => Math.max(0, v * trainMax));
+            m1Mae = mae(valActual, forecastActual1);
+            m1Rmse = rmse(valActual, forecastActual1);
+            m1Dir = precisionDireccional(valActual, forecastActual1);
         }
         catch {
             omitidos++;
+            continue;
         }
+        if (horizonte30 >= 2) {
+            const splitIdx2 = serie.length - horizonte30;
+            const trainSerie2 = serie.slice(0, splitIdx2);
+            const valActual2 = serie.slice(splitIdx2);
+            const trainMax2 = Math.max(...trainSerie2);
+            if (trainMax2 > 0) {
+                const trainNorm2 = trainSerie2.map((v) => v / trainMax2);
+                const trainSmooth2 = suavizarSerie(trainNorm2);
+                const promSmooth2 = trainSmooth2.reduce((a, b) => a + b, 0) / trainSmooth2.length;
+                try {
+                    const red2 = new brain.recurrent.LSTMTimeStep({
+                        inputSize: 1,
+                        hiddenLayers: [10, 5],
+                        outputSize: 1,
+                    });
+                    red2.train([trainSmooth2], {
+                        iterations: ITERACIONES,
+                        errorThresh: UMBRAL_ERROR,
+                        log: false,
+                    });
+                    const forecastNorm2 = red2.forecast(trainSmooth2, horizonte30);
+                    const forecastDamped2 = aplicarDamping(forecastNorm2, promSmooth2);
+                    const forecastActual2 = forecastDamped2.map((v) => Math.max(0, v * trainMax2));
+                    m2Mae = mae(valActual2, forecastActual2);
+                    m2Rmse = rmse(valActual2, forecastActual2);
+                }
+                catch {
+                }
+            }
+        }
+        validados.push({
+            nombre: nombreProducto.get(idProducto) ?? `prod_${idProducto}`,
+            mae: m1Mae,
+            rmse: m1Rmse,
+            dirAcc: m1Dir,
+            horizonteM1: valLen,
+            mae30: m2Mae,
+            rmse30: m2Rmse,
+            horizonte30,
+            errorEntrenamiento: m1Err,
+            puntosHistoricos: serie.length,
+        });
     }
     return { nombre: nomSucursal, validados, omitidos };
 }
-function formatear(n, dec) {
-    return n.toFixed(dec).padStart(6);
+function fmt(n, dec) {
+    return n.toFixed(dec).padStart(7);
 }
 function generarReporte(resultados) {
-    const lineas = [];
-    lineas.push('══════════════════════════════════════════════════════');
-    lineas.push('  VALIDACIÓN DEL MODELO LSTM — SISTEMA CENDENT');
-    lineas.push('══════════════════════════════════════════════════════');
-    lineas.push('');
-    let totalValidados = 0;
-    let sumMae = 0;
-    let sumRmse = 0;
-    let sumDir = 0;
+    const L = [];
+    L.push('══════════════════════════════════════════════════════════');
+    L.push('  VALIDACIÓN DEL MODELO LSTM — SISTEMA CENDENT');
+    L.push('  (clamp [0, 1.2] + damped trend factor=0.9)');
+    L.push('══════════════════════════════════════════════════════════');
+    L.push('');
+    let totValidados = 0;
+    let sumMae1 = 0, sumRmse1 = 0, sumDir = 0;
+    let totValidados30 = 0;
+    let sumMae30 = 0, sumRmse30 = 0;
     for (const r of resultados) {
         const n = r.validados.length;
-        const avgMae = n > 0 ? r.validados.reduce((a, p) => a + p.mae, 0) / n : 0;
-        const avgRmse = n > 0 ? r.validados.reduce((a, p) => a + p.rmse, 0) / n : 0;
+        const v30 = r.validados.filter((p) => p.mae30 !== null);
+        const n30 = v30.length;
+        const avgMae1 = n > 0 ? r.validados.reduce((a, p) => a + p.mae, 0) / n : 0;
+        const avgRmse1 = n > 0 ? r.validados.reduce((a, p) => a + p.rmse, 0) / n : 0;
         const avgDir = n > 0 ? r.validados.reduce((a, p) => a + p.dirAcc, 0) / n : 0;
         const avgErr = n > 0 ? r.validados.reduce((a, p) => a + p.errorEntrenamiento, 0) / n : 0;
-        lineas.push(`  Sucursal: ${r.nombre}`);
-        lineas.push('  ─────────────────────────────────────────────────');
-        lineas.push(`  Productos validados        : ${String(n).padStart(4)}`);
-        lineas.push(`  Productos omitidos (< ${MIN_PUNTOS_VALIDACION}d) : ${String(r.omitidos).padStart(4)}`);
-        lineas.push(`  MAE promedio               : ${formatear(avgMae, 2)} u/día`);
-        lineas.push(`  RMSE promedio              : ${formatear(avgRmse, 2)} u/día`);
-        lineas.push(`  Precisión direccional      : ${formatear(avgDir, 1)} %`);
-        lineas.push(`  Error de entrenamiento avg :${formatear(avgErr, 4)}`);
-        lineas.push('');
-        totalValidados += n;
-        sumMae += avgMae * n;
-        sumRmse += avgRmse * n;
+        const avgHor1 = n > 0 ? Math.round(r.validados.reduce((a, p) => a + p.horizonteM1, 0) / n) : 0;
+        const avgMae30 = n30 > 0 ? v30.reduce((a, p) => a + (p.mae30 ?? 0), 0) / n30 : null;
+        const avgRmse30 = n30 > 0 ? v30.reduce((a, p) => a + (p.rmse30 ?? 0), 0) / n30 : null;
+        const avgHor30 = n30 > 0 ? Math.round(v30.reduce((a, p) => a + p.horizonte30, 0) / n30) : 0;
+        L.push(`  Sucursal: ${r.nombre}`);
+        L.push('  ──────────────────────────────────────────────────────');
+        L.push(`  Productos validados             : ${String(n).padStart(4)}`);
+        L.push(`  Productos omitidos (< ${MIN_PUNTOS_VALIDACION}d)      : ${String(r.omitidos).padStart(4)}`);
+        L.push('');
+        L.push(`  ── Métrica 1: horizonte dinámico (split 80/20) ──`);
+        L.push(`  Horizonte promedio              : ${String(avgHor1).padStart(4)} d`);
+        L.push(`  MAE promedio                    :${fmt(avgMae1, 2)} u/día`);
+        L.push(`  RMSE promedio                   :${fmt(avgRmse1, 2)} u/día`);
+        L.push(`  Precisión direccional           :${fmt(avgDir, 1)} %`);
+        L.push(`  Error de entrenamiento avg      :${fmt(avgErr, 4)}`);
+        L.push('');
+        if (n30 > 0 && avgMae30 !== null && avgRmse30 !== null) {
+            L.push(`  ── Métrica 2: horizonte 30 d (o máximo posible) ─`);
+            L.push(`  Productos con métrica 30d       : ${String(n30).padStart(4)}`);
+            L.push(`  Horizonte promedio              : ${String(avgHor30).padStart(4)} d`);
+            L.push(`  MAE (30d) promedio              :${fmt(avgMae30, 2)} u/día`);
+            L.push(`  RMSE (30d) promedio             :${fmt(avgRmse30, 2)} u/día`);
+        }
+        else {
+            L.push(`  ── Métrica 2: horizonte 30 d ─────────────────────`);
+            L.push(`  Series insuficientes para métrica 30d (necesita ≥ ${MIN_PUNTOS_VALIDACION + 2} puntos)`);
+        }
+        L.push('');
+        totValidados += n;
+        sumMae1 += avgMae1 * n;
+        sumRmse1 += avgRmse1 * n;
         sumDir += avgDir * n;
+        totValidados30 += n30;
+        sumMae30 += (avgMae30 ?? 0) * n30;
+        sumRmse30 += (avgRmse30 ?? 0) * n30;
     }
-    const globalMae = totalValidados > 0 ? sumMae / totalValidados : 0;
-    const globalRmse = totalValidados > 0 ? sumRmse / totalValidados : 0;
-    const globalDir = totalValidados > 0 ? sumDir / totalValidados : 0;
-    lineas.push('──────────────────────────────────────────────────');
-    lineas.push('  RESUMEN GLOBAL');
-    lineas.push('──────────────────────────────────────────────────');
-    lineas.push(`  Total productos validados  : ${String(totalValidados).padStart(4)}`);
-    lineas.push(`  MAE global                 : ${formatear(globalMae, 2)} u/día`);
-    lineas.push(`  RMSE global                : ${formatear(globalRmse, 2)} u/día`);
-    lineas.push(`  Precisión direccional      : ${formatear(globalDir, 1)} %`);
-    lineas.push('══════════════════════════════════════════════════════');
-    lineas.push(`  Generado: ${new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' })}`);
-    lineas.push('══════════════════════════════════════════════════════');
-    return lineas.join('\n');
+    const gMae1 = totValidados > 0 ? sumMae1 / totValidados : 0;
+    const gRmse1 = totValidados > 0 ? sumRmse1 / totValidados : 0;
+    const gDir = totValidados > 0 ? sumDir / totValidados : 0;
+    const gMae30 = totValidados30 > 0 ? sumMae30 / totValidados30 : null;
+    const gRmse30 = totValidados30 > 0 ? sumRmse30 / totValidados30 : null;
+    L.push('──────────────────────────────────────────────────────────');
+    L.push('  RESUMEN GLOBAL');
+    L.push('──────────────────────────────────────────────────────────');
+    L.push(`  Total productos validados       : ${String(totValidados).padStart(4)}`);
+    L.push('');
+    L.push('  ── Métrica 1 (horizonte dinámico) ────────────────');
+    L.push(`  MAE global                      :${fmt(gMae1, 2)} u/día`);
+    L.push(`  RMSE global                     :${fmt(gRmse1, 2)} u/día`);
+    L.push(`  Precisión direccional           :${fmt(gDir, 1)} %`);
+    L.push('');
+    if (gMae30 !== null && gRmse30 !== null) {
+        L.push('  ── Métrica 2 (horizonte 30 días) ─────────────────');
+        L.push(`  Productos con métrica 30d       : ${String(totValidados30).padStart(4)}`);
+        L.push(`  MAE global (30d)                :${fmt(gMae30, 2)} u/día`);
+        L.push(`  RMSE global (30d)               :${fmt(gRmse30, 2)} u/día`);
+    }
+    else {
+        L.push('  ── Métrica 2 (horizonte 30 días) ─────────────────');
+        L.push('  Sin suficientes datos para métrica 30d');
+    }
+    L.push('══════════════════════════════════════════════════════════');
+    L.push(`  Generado: ${new Date().toLocaleString('es-VE', { timeZone: 'America/Caracas' })}`);
+    L.push('══════════════════════════════════════════════════════════');
+    return L.join('\n');
 }
 async function main() {
-    console.log('\nIniciando validación del modelo LSTM...\n');
+    console.log('\nIniciando validación del modelo LSTM (con damping)...\n');
     const sucursales = await prisma.sucursales.findMany({
         where: { estado: { not: false } },
         orderBy: { id_sucursal: 'asc' },

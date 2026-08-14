@@ -40,6 +40,8 @@ const ITERACIONES = 500;
 const UMBRAL_ERROR = 0.01;
 const MIN_PUNTOS_SERIE = 14;
 const HORIZONTE_DIAS = 30;
+const FACTOR_AMORTIGUACION = 0.9;
+const VENTANA_ACTIVIDAD_DIAS = 45;
 async function obtenerEgresos(idSucursal) {
     return prisma.movimientos.findMany({
         where: {
@@ -146,12 +148,31 @@ async function generarYGuardarSucursal(idSucursal, nomSucursal) {
         process.stdout.write(`  [${procesados}/${candidatos.length}] ${nombre.slice(0, 50).padEnd(50)} ...`);
         try {
             const mapaFecha = mapaConsumos.get(idProducto);
+            const fechasOrdenadas = Array.from(mapaFecha.keys()).sort();
+            const ultimaFecha = fechasOrdenadas[fechasOrdenadas.length - 1];
+            const diasInactividad = (Date.now() - new Date(ultimaFecha).getTime()) / 86_400_000;
+            if (diasInactividad > VENTANA_ACTIVIDAD_DIAS) {
+                process.stdout.write(` SKIP (inactivo ${Math.round(diasInactividad)}d)\n`);
+                continue;
+            }
+            rellenarDias(mapaFecha);
             const serie = Array.from(mapaFecha.keys()).sort().map(f => mapaFecha.get(f));
             const max = Math.max(...serie);
             const serieNorm = serie.map(v => v / max);
             const { red, smooth } = entrenarLSTM(serieNorm);
             const forecastNorm = red.forecast(smooth, HORIZONTE_DIAS);
-            const consumo30d = Math.round(forecastNorm.reduce((s, v) => s + v * max, 0) * 100) / 100;
+            const promSmooth = smooth.reduce((a, b) => a + b, 0) / smooth.length;
+            const forecastDamped = forecastNorm.map((v, i) => {
+                const clamped = Math.min(Math.max(v, 0), 1.2);
+                const peso = Math.pow(FACTOR_AMORTIGUACION, i);
+                return clamped * peso + promSmooth * (1 - peso);
+            });
+            const consumo30d = Math.round(forecastDamped.reduce((s, v) => s + v * max, 0) * 100) / 100;
+            const prediccionSemanal = [0, 1, 2, 3].map((sem) => {
+                const inicio = sem * 7;
+                const fin = sem === 3 ? HORIZONTE_DIAS : inicio + 7;
+                return (Math.round(forecastDamped.slice(inicio, fin).reduce((s, v) => s + v * max, 0) * 100) / 100);
+            });
             const stockTotal = stockMapa.get(idProducto) ?? 0;
             const promDiario = consumo30d / HORIZONTE_DIAS;
             const diasQuiebre = stockTotal === 0 ? 0 : promDiario > 0 ? Math.floor(stockTotal / promDiario) : 9999;
@@ -163,6 +184,7 @@ async function generarYGuardarSucursal(idSucursal, nomSucursal) {
                 consumo_predicho_30_dias: consumo30d,
                 dias_para_quiebre: diasQuiebre,
                 sugerencia_compra: sugerencia,
+                prediccion_semanal: prediccionSemanal,
             });
             process.stdout.write(' OK\n');
         }

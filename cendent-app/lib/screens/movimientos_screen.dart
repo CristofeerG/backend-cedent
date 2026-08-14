@@ -225,7 +225,28 @@ Movimiento _fromJson(dynamic j) {
     kit: kitJson != null
         ? KitRef(kitJson['nombre_procedimiento']?.toString() ?? '—')
         : null,
-    transferencia: isTransfer ? TransferenciaRef(sucNombre, sucNombre) : null,
+    transferencia: isTransfer
+        ? () {
+            // Intentar leer origen/destino desde detalle_transferencia
+            final detalles = loteJson?['detalle_transferencia'];
+            final detalle = (detalles is List && detalles.isNotEmpty)
+                ? detalles.first
+                : null;
+            final trz = detalle?['transferencias'];
+            final sucOrigen = trz
+                ?['sucursales_transferencias_id_sucursal_origenTosucursales']
+                ?['nom_sucursal']?.toString();
+            final sucDestino = trz
+                ?['sucursales_transferencias_id_sucursal_destinoTosucursales']
+                ?['nom_sucursal']?.toString();
+
+            // Fallback a sucNombre si no hay datos de transferencia
+            return TransferenciaRef(
+              sucOrigen ?? sucNombre,
+              sucDestino ?? sucNombre,
+            );
+          }()
+        : null,
   );
 }
 

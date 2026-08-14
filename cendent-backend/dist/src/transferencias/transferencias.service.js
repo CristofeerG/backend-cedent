@@ -229,6 +229,13 @@ let TransferenciasService = class TransferenciasService {
                         tipo_mov: 'INGRESO_TRANSFERENCIA',
                     },
                 });
+                await tx.detalle_transferencia.create({
+                    data: {
+                        id_transferencia: transferencia.id_transferencia,
+                        id_lote: loteResultante.id_lote,
+                        cantidad: cantidadRecibida,
+                    },
+                });
                 lotesCreados.push(loteResultante);
             }
             return {
