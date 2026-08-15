@@ -34,3 +34,32 @@ export class ResultadoPrediccionDto {
   total_productos_analizados: number;
   predicciones: DemandaProductoDto[];
 }
+
+/**
+ * Consumo real agregado de las últimas 4 semanas.
+ *
+ * Existe para que el gráfico del dashboard compare peras con peras: las barras
+ * de consumo real y las de proyección LSTM deben cubrir la misma ventana
+ * temporal, el mismo conjunto de tipos de movimiento y el mismo universo de
+ * productos. Calcularlo en el cliente a partir de GET /movimientos no lo
+ * garantizaba: ese endpoint corta en los últimos 200 registros (~21 días), lo
+ * que dejaba la semana más antigua casi vacía y subvaluaba el total.
+ */
+export class ConsumoRealDto {
+  id_sucursal: number;
+  /** Tamaño de la ventana analizada (28 días = 4 semanas). */
+  dias_ventana: number;
+  /**
+   * Consumo por semana, de la más antigua a la más reciente.
+   * Índices: [0] S-3, [1] S-2, [2] S-1, [3] semana actual.
+   */
+  semanas: number[];
+  /** Suma de `semanas`. */
+  total: number;
+  /**
+   * id_producto con al menos un egreso en la ventana. El dashboard filtra la
+   * proyección a este conjunto para que ambos lados del gráfico cubran los
+   * mismos productos.
+   */
+  productos_activos: number[];
+}

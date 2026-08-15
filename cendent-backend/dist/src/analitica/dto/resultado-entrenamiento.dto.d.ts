@@ -25,3 +25,10 @@ export declare class ResultadoPrediccionDto {
     total_productos_analizados: number;
     predicciones: DemandaProductoDto[];
 }
+export declare class ConsumoRealDto {
+    id_sucursal: number;
+    dias_ventana: number;
+    semanas: number[];
+    total: number;
+    productos_activos: number[];
+}

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as brain from 'brain.js';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  ConsumoRealDto,
   DemandaProductoDto,
   PrediccionProductoDto,
   ResultadoEntrenamientoDto,
@@ -14,12 +15,22 @@ const MIN_PUNTOS_SERIE = 14;
 const HORIZONTE_DIAS = 30;
 // Factor de amortiguamiento para el forecast recursivo del LSTM.
 // En el paso i, el valor normalizado predicho se "jala" hacia el promedio
-// histórico con peso (1 - 0.9^i), evitando la divergencia acumulada.
-const FACTOR_AMORTIGUACION = 0.9;
+// histórico con peso (1 - F^i), evitando la divergencia acumulada.
+// Con F = 0.9 la primera semana quedaba casi sin amortiguar (peso 0.9^0..0.9^6
+// = 1.00..0.53), así que el pico crudo del LSTM se colaba entero en S+1 y
+// producía un escalón irreal frente a S+2..S+4. Con 0.75 el anclaje al
+// promedio histórico entra desde el día 2 (1.00..0.18) y la curva sale plana.
+const FACTOR_AMORTIGUACION = 0.75;
 // Productos sin ningún egreso en los últimos VENTANA_ACTIVIDAD_DIAS días se
 // omiten de la predicción: el LSTM, entrenado en histórico antiguo, generaría
 // consumo positivo para productos que en la práctica están inactivos.
 const VENTANA_ACTIVIDAD_DIAS = 45;
+// Movimientos que descuentan stock de la sucursal. La predicción y el consumo
+// real deben usar exactamente esta lista, o los dos lados del gráfico del
+// dashboard cubrirían universos distintos.
+const TIPOS_EGRESO = ['EGRESO_KIT', 'EGRESO_DIRECTO', 'SALIDA_TRANSFERENCIA'];
+// Ventana del comparativo de consumo real del dashboard: 4 semanas.
+const SEMANAS_CONSUMO_REAL = 4;
 
 @Injectable()
 export class AnaliticaService {
@@ -32,7 +43,7 @@ export class AnaliticaService {
   private async obtenerEgresosPorSucursal(idSucursal: number) {
     return this.prisma.movimientos.findMany({
       where: {
-        tipo_mov: { in: ['EGRESO_KIT', 'EGRESO_DIRECTO', 'SALIDA_TRANSFERENCIA'] },
+        tipo_mov: { in: TIPOS_EGRESO },
         lotes: { id_sucursal: idSucursal },
       },
       include: {
@@ -122,6 +133,67 @@ export class AnaliticaService {
   }
 
   // ─── endpoints ──────────────────────────────────────────────────────────────
+
+  /**
+   * Consumo real de las últimas 4 semanas, agregado por semana, más el conjunto
+   * de productos que lo generaron.
+   *
+   * El dashboard usaba GET /movimientos para esto, pero ese endpoint corta en
+   * los últimos 200 registros (~21 días de operación actual): la semana más
+   * antigua de la ventana llegaba casi vacía, el total real quedaba subvaluado
+   * y los productos activos solo en esos días perdidos no entraban al filtro de
+   * la proyección. Aquí se consulta por rango de fecha, así que la ventana está
+   * completa sin importar el volumen de movimientos.
+   */
+  async obtenerConsumoReal(idSucursal: number): Promise<ConsumoRealDto> {
+    const diasVentana = SEMANAS_CONSUMO_REAL * 7;
+
+    // Inicio a medianoche: los buckets semanales quedan alineados a días
+    // completos y no se desplazan según la hora en que se consulte.
+    const inicio = new Date();
+    inicio.setHours(0, 0, 0, 0);
+    inicio.setDate(inicio.getDate() - diasVentana);
+
+    const egresos = await this.prisma.movimientos.findMany({
+      where: {
+        tipo_mov: { in: TIPOS_EGRESO },
+        fecha_hora: { gte: inicio },
+        lotes: { id_sucursal: idSucursal },
+      },
+      select: {
+        cantidad: true,
+        fecha_hora: true,
+        lotes: { select: { id_producto: true } },
+      },
+    });
+
+    const semanas = new Array<number>(SEMANAS_CONSUMO_REAL).fill(0);
+    const productosActivos = new Set<number>();
+
+    for (const mov of egresos) {
+      if (!mov.fecha_hora) continue;
+      const dias = (mov.fecha_hora.getTime() - inicio.getTime()) / 86_400_000;
+      const semana = Math.floor(dias / 7);
+      // Descarta fechas fuera de rango (p. ej. un fecha_hora futuro por error
+      // de captura) para que no distorsionen ni el total ni la última barra.
+      if (semana < 0 || semana >= SEMANAS_CONSUMO_REAL) continue;
+
+      semanas[semana] += Number(mov.cantidad);
+      if (mov.lotes?.id_producto != null) {
+        productosActivos.add(mov.lotes.id_producto);
+      }
+    }
+
+    const redondear = (v: number) => Math.round(v * 100) / 100;
+
+    return {
+      id_sucursal: idSucursal,
+      dias_ventana: diasVentana,
+      semanas: semanas.map(redondear),
+      total: redondear(semanas.reduce((s, v) => s + v, 0)),
+      productos_activos: Array.from(productosActivos).sort((a, b) => a - b),
+    };
+  }
 
   async prepararYEntrenar(idSucursal: number): Promise<ResultadoEntrenamientoDto> {
     this.logger.log(`Iniciando entrenamiento LSTM para sucursal ${idSucursal}...`);

@@ -51,8 +51,10 @@ const ITERACIONES = 500;
 const UMBRAL_ERROR = 0.01;
 const MIN_PUNTOS_SERIE = 14;
 const HORIZONTE_DIAS = 30;
-const FACTOR_AMORTIGUACION = 0.9;
+const FACTOR_AMORTIGUACION = 0.75;
 const VENTANA_ACTIVIDAD_DIAS = 45;
+const TIPOS_EGRESO = ['EGRESO_KIT', 'EGRESO_DIRECTO', 'SALIDA_TRANSFERENCIA'];
+const SEMANAS_CONSUMO_REAL = 4;
 let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
     prisma;
     logger = new common_1.Logger(AnaliticaService_1.name);
@@ -62,7 +64,7 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
     async obtenerEgresosPorSucursal(idSucursal) {
         return this.prisma.movimientos.findMany({
             where: {
-                tipo_mov: { in: ['EGRESO_KIT', 'EGRESO_DIRECTO', 'SALIDA_TRANSFERENCIA'] },
+                tipo_mov: { in: TIPOS_EGRESO },
                 lotes: { id_sucursal: idSucursal },
             },
             include: {
@@ -133,6 +135,46 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
             stockPorProducto.set(lote.id_producto, acum + Number(lote.stock_actual));
         }
         return stockPorProducto;
+    }
+    async obtenerConsumoReal(idSucursal) {
+        const diasVentana = SEMANAS_CONSUMO_REAL * 7;
+        const inicio = new Date();
+        inicio.setHours(0, 0, 0, 0);
+        inicio.setDate(inicio.getDate() - diasVentana);
+        const egresos = await this.prisma.movimientos.findMany({
+            where: {
+                tipo_mov: { in: TIPOS_EGRESO },
+                fecha_hora: { gte: inicio },
+                lotes: { id_sucursal: idSucursal },
+            },
+            select: {
+                cantidad: true,
+                fecha_hora: true,
+                lotes: { select: { id_producto: true } },
+            },
+        });
+        const semanas = new Array(SEMANAS_CONSUMO_REAL).fill(0);
+        const productosActivos = new Set();
+        for (const mov of egresos) {
+            if (!mov.fecha_hora)
+                continue;
+            const dias = (mov.fecha_hora.getTime() - inicio.getTime()) / 86_400_000;
+            const semana = Math.floor(dias / 7);
+            if (semana < 0 || semana >= SEMANAS_CONSUMO_REAL)
+                continue;
+            semanas[semana] += Number(mov.cantidad);
+            if (mov.lotes?.id_producto != null) {
+                productosActivos.add(mov.lotes.id_producto);
+            }
+        }
+        const redondear = (v) => Math.round(v * 100) / 100;
+        return {
+            id_sucursal: idSucursal,
+            dias_ventana: diasVentana,
+            semanas: semanas.map(redondear),
+            total: redondear(semanas.reduce((s, v) => s + v, 0)),
+            productos_activos: Array.from(productosActivos).sort((a, b) => a - b),
+        };
     }
     async prepararYEntrenar(idSucursal) {
         this.logger.log(`Iniciando entrenamiento LSTM para sucursal ${idSucursal}...`);

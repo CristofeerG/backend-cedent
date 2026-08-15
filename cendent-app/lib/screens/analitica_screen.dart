@@ -492,7 +492,7 @@ class _AResumenCards extends StatelessWidget {
               value: consumoTotal != null ? _fmt(consumoTotal!) : '…',
               unit: consumoTotal != null ? 'u' : null,
               label: 'Consumo predicho (30 d)',
-              sub: 'Suma total de todos los productos',
+              sub: 'Con historial de 45 días',
             ),
           ),
         ],

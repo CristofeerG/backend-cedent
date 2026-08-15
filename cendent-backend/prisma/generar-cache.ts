@@ -8,7 +8,9 @@ const UMBRAL_ERROR     = 0.01;
 const MIN_PUNTOS_SERIE = 14;
 const HORIZONTE_DIAS   = 30;
 // Mismo factor que AnaliticaService: frena la divergencia recursiva del LSTM.
-const FACTOR_AMORTIGUACION = 0.9;
+// Debe mantenerse sincronizado con el valor de analitica.service.ts o el caché
+// generado aquí no coincidiría con el que produce el endpoint de refresco.
+const FACTOR_AMORTIGUACION = 0.75;
 // Productos sin egreso en los últimos VENTANA_ACTIVIDAD_DIAS días se omiten.
 const VENTANA_ACTIVIDAD_DIAS = 45;
 

@@ -30,6 +30,9 @@ let AnaliticaController = class AnaliticaController {
     prediccion(idSucursal) {
         return this.analiticaService.predecirDemanda(idSucursal);
     }
+    consumoReal(idSucursal) {
+        return this.analiticaService.obtenerConsumoReal(idSucursal);
+    }
     refrescar(idSucursal) {
         return this.analiticaService.generarYGuardar(idSucursal);
     }
@@ -51,6 +54,20 @@ __decorate([
     __metadata("design:paramtypes", [Number]),
     __metadata("design:returntype", void 0)
 ], AnaliticaController.prototype, "prediccion", null);
+__decorate([
+    (0, swagger_1.ApiOperation)({
+        summary: 'Consumo real de las últimas 4 semanas, agregado por semana',
+        description: 'Devuelve el consumo semanal (S-3, S-2, S-1, actual), el total y los ' +
+            'id_producto activos en la ventana. El dashboard lo usa para que las ' +
+            'barras de consumo real y las de proyección LSTM cubran la misma ' +
+            'ventana temporal y el mismo universo de productos.',
+    }),
+    (0, common_1.Get)('consumo-real/:id_sucursal'),
+    __param(0, (0, common_1.Param)('id_sucursal', common_1.ParseIntPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Number]),
+    __metadata("design:returntype", void 0)
+], AnaliticaController.prototype, "consumoReal", null);
 __decorate([
     (0, swagger_1.ApiOperation)({
         summary: 'Forzar reentrenamiento LSTM y actualizar caché de predicción',

@@ -173,7 +173,9 @@ class _HomeScreenState extends State<HomeScreen> {
   List<ForecastBar> _forecast = [];
   int _totalPredicho30 = 0;
   int _totalReal4Sem = 0;
-  // Productos con egreso EGRESO_KIT / EGRESO_DIRECTO en los últimos 28 días.
+  // Consumo real por semana [S-3, S-2, S-1, actual], de GET /analitica/consumo-real.
+  List<double> _realSem4 = [0, 0, 0, 0];
+  // Productos con egreso en los últimos 28 días, según el mismo endpoint.
   // Se usa para alinear el universo de la predicción con el del consumo real.
   Set<int> _productosActivos4Sem = {};
   // Suma semanal del forecast LSTM para los productos activos:
@@ -214,6 +216,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadData() async {
     setState(() { _loading = true; _loadingPrediccion = true; _errorConexion = false; });
 
+    // Consumo real agregado: se lanza en paralelo con el resto. Va por separado
+    // del Future.wait de abajo porque devuelve un Map y no un List.
+    final consumoRealFuture = _api.getConsumoReal(widget.idSucursal);
+
     // Cargar datos rápidos primero (inventario, movimientos, transferencias)
     final results = await Future.wait([
       _api.getInventario(widget.idSucursal),
@@ -242,6 +248,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _processInventario(inventario);
     _processMovimientos(movimientos, transferencias);
+    // Debe resolverse antes de la predicción: _productosActivos4Sem sale de aquí
+    // y filtra la proyección al mismo universo de productos.
+    _processConsumoReal(await consumoRealFuture);
+
+    if (!mounted) return;
 
     // Mostrar dashboard inmediatamente; IA carga en segundo plano
     setState(() => _loading = false);
@@ -250,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (widget.rol == 'administrador') {
       _api.getPrediccion(widget.idSucursal).then((prediccion) {
         if (!mounted) return;
-        _processPrediccion(prediccion, movimientos);
+        _processPrediccion(prediccion);
         setState(() => _loadingPrediccion = false);
       // ignore: avoid_types_on_closure_parameters
       }).catchError((Object _) {
@@ -286,7 +297,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _processMovimientos(List<dynamic>? movs, List<dynamic>? transfers) {
     if (movs == null) return;
-    final hoy = DateTime.now();
 
     // Transferencias pendientes para esta sucursal
     int pendientes = 0;
@@ -342,36 +352,38 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }).toList();
 
-    // Consumo real últimas 4 semanas para el gráfico.
-    // También construye _productosActivos4Sem: el conjunto de id_producto con
-    // al menos un egreso en los últimos 28 días dentro de los 200 registros.
-    // Ese conjunto se usa luego en _processPrediccion para filtrar la proyección
-    // al mismo universo de productos y hacer la comparación consistente.
-    final hace4sem = hoy.subtract(const Duration(days: 28));
-    final semanas = [0.0, 0.0, 0.0, 0.0];
-    final productosActivos = <int>{};
-    for (final m in movs) {
-      final tipo = m['tipo_mov'] as String?;
-      if (tipo != 'EGRESO_KIT' && tipo != 'EGRESO_DIRECTO') continue;
-      final fechaStr = m['fecha_hora'] as String?;
-      if (fechaStr == null) continue;
-      try {
-        final fecha = DateTime.parse(fechaStr).toLocal();
-        if (fecha.isBefore(hace4sem)) continue;
-        // Capturar id_producto del lote asociado al movimiento activo.
-        final idProd = (m['lotes']?['id_producto'] as num?)?.toInt();
-        if (idProd != null) productosActivos.add(idProd);
-        final semIdx = fecha.difference(hace4sem).inDays ~/ 7;
-        if (semIdx >= 0 && semIdx < 4) {
-          semanas[semIdx] += _toDouble(m['cantidad']);
-        }
-      } catch (_) {}
-    }
-    _totalReal4Sem = semanas.fold(0, (a, b) => a + b.round());
-    _productosActivos4Sem = productosActivos;
   }
 
-  void _processPrediccion(Map<String, dynamic>? pred, List<dynamic>? movs) {
+  /// Consumo real de las últimas 4 semanas, ya agregado por el backend.
+  ///
+  /// Antes esto se derivaba de la lista de movimientos, pero GET /movimientos
+  /// solo devuelve los últimos 200 registros (~21 días): la semana más antigua
+  /// llegaba casi vacía, el total quedaba subvaluado y los productos activos
+  /// únicamente en los días perdidos no entraban a _productosActivos4Sem, así
+  /// que su proyección tampoco se contaba. El endpoint consulta por rango de
+  /// fecha, de modo que la ventana de 28 días está siempre completa.
+  void _processConsumoReal(Map<String, dynamic>? data) {
+    // Si falla, se conservan los ceros: mejor un gráfico vacío que uno con
+    // barras reales incompletas comparadas contra una proyección completa.
+    if (data == null) return;
+
+    final semanas = (data['semanas'] as List<dynamic>? ?? const [])
+        .map(_toDouble)
+        .toList();
+    _realSem4 = List<double>.generate(
+      4,
+      (i) => i < semanas.length ? semanas[i] : 0.0,
+    );
+
+    _totalReal4Sem = _toDouble(data['total']).round();
+
+    _productosActivos4Sem = (data['productos_activos'] as List<dynamic>? ?? const [])
+        .whereType<num>()
+        .map((e) => e.toInt())
+        .toSet();
+  }
+
+  void _processPrediccion(Map<String, dynamic>? pred) {
     // Panel de riesgo
     if (pred != null) {
       final lista = pred['predicciones'] as List<dynamic>? ?? [];
@@ -419,29 +431,14 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     // Barras del gráfico
-    _buildForecast(movs);
+    _buildForecast();
   }
 
-  void _buildForecast(List<dynamic>? movs) {
-    final hoy = DateTime.now();
-    final hace4sem = hoy.subtract(const Duration(days: 28));
-
-    // Consumo real por semana (S-3, S-2, S-1, Actual)
-    final realSem = [0.0, 0.0, 0.0, 0.0];
-    if (movs != null) {
-      for (final m in movs) {
-        final tipo = m['tipo_mov'] as String?;
-        if (tipo != 'EGRESO_KIT' && tipo != 'EGRESO_DIRECTO') continue;
-        final fechaStr = m['fecha_hora'] as String?;
-        if (fechaStr == null) continue;
-        try {
-          final fecha = DateTime.parse(fechaStr).toLocal();
-          if (fecha.isBefore(hace4sem)) continue;
-          final idx = fecha.difference(hace4sem).inDays ~/ 7;
-          if (idx >= 0 && idx < 4) realSem[idx] += _toDouble(m['cantidad']);
-        } catch (_) {}
-      }
-    }
+  void _buildForecast() {
+    // S-3..Actual salen de _realSem4 (GET /analitica/consumo-real), calculado
+    // sobre la ventana completa de 28 días y los mismos tipos de movimiento que
+    // usa el entrenamiento del LSTM.
+    final realSem = _realSem4;
 
     // S+1..S+4 vienen directamente del modelo LSTM (campo prediccion_semanal),
     // sumados sobre todos los productos activos en _processPrediccion.
@@ -1619,32 +1616,11 @@ class _ForecastPanel extends StatelessWidget {
   final int totalReal;
   final int totalPredicho;
   final bool loading;
-  // true cuando no hubo egresos en los últimos 28 días.
   final bool sinConsumoReciente;
   const _ForecastPanel({required this.forecast, required this.totalReal, required this.totalPredicho, this.loading = false, this.sinConsumoReciente = false});
 
   @override
   Widget build(BuildContext context) {
-    final variacion = totalReal > 0 ? ((totalPredicho - totalReal) / totalReal * 100) : 0.0;
-    final String varStr;
-    final Color varColor;
-    if (loading) {
-      varStr = '…';
-      varColor = CendentColors.secondary;
-    } else if (totalReal == 0) {
-      varStr = '—';
-      varColor = CendentColors.secondary;
-    } else if (variacion > 999) {
-      varStr = '> 999%';
-      varColor = CendentColors.amber;
-    } else if (variacion < -99) {
-      varStr = '< -99%';
-      varColor = CendentColors.green;
-    } else {
-      varStr = '${variacion >= 0 ? '+' : ''}${variacion.toStringAsFixed(1)}%';
-      varColor = variacion >= 0 ? CendentColors.amber : CendentColors.green;
-    }
-
     return CendentCard(
       padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
       child: Column(
@@ -1653,7 +1629,7 @@ class _ForecastPanel extends StatelessWidget {
           const _PanelHeader(
             title: 'Predicción de consumo — próximos 30 días',
             aiBadge: true,
-            subtitle: 'Proyección de demanda por semana · productos con consumo reciente · modelo LSTM',
+            //subtitle: 'Barras grises = consumo real · barras azules = proyección LSTM · línea = promedio histórico',
           ),
           const SizedBox(height: 18),
           Wrap(
@@ -1662,12 +1638,11 @@ class _ForecastPanel extends StatelessWidget {
             children: [
               _Metric(label: 'Consumo real (4 sem)', value: _fmt(totalReal), unit: 'u'),
               _Metric(label: 'Proyección (4 sem)', value: loading ? '…' : _fmt(totalPredicho), unit: loading ? null : 'u'),
-              _Metric(label: 'Variación', value: varStr, valueColor: loading ? CendentColors.secondary : varColor),
             ],
           ),
           const SizedBox(height: 18),
           SizedBox(
-            height: 188,
+            height: 196,
             child: loading
                 ? const Center(
                     child: Column(
@@ -1680,8 +1655,6 @@ class _ForecastPanel extends StatelessWidget {
                     ),
                   )
                 : sinConsumoReciente
-                    // Universo vacío: ningún producto con egreso en 28 días.
-                    // No hay base común con la predicción → evitar mostrar variación sin sentido.
                     ? const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1696,19 +1669,16 @@ class _ForecastPanel extends StatelessWidget {
                       )
                     : forecast.isEmpty
                         ? const Center(child: Text('Sin datos de predicción', style: TextStyle(color: CendentColors.secondary)))
-                        : Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: forecast.map((b) => Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 5), child: _Bar(bar: b)))).toList(),
-                          ),
+                        : _SplitBarChart(forecast: forecast),
           ),
           const SizedBox(height: 14),
           const Divider(height: 1, color: CendentColors.hairlineSoft),
           const SizedBox(height: 14),
           const Row(
             children: [
-              _LegendKey(projected: false, label: 'Consumo real'),
+              _LegendKey(color: Color(0xFF9EA3AC), label: 'Consumo real'),
               SizedBox(width: 18),
-              _LegendKey(projected: true, label: 'Proyección IA'),
+              _LegendKey(color: Color(0xFF3987E5), label: 'Proyección IA'),
             ],
           ),
         ],
@@ -1727,8 +1697,7 @@ class _Metric extends StatelessWidget {
   final String label;
   final String value;
   final String? unit;
-  final Color? valueColor;
-  const _Metric({required this.label, required this.value, this.unit, this.valueColor});
+  const _Metric({required this.label, required this.value, this.unit});
 
   @override
   Widget build(BuildContext context) {
@@ -1740,7 +1709,7 @@ class _Metric extends StatelessWidget {
         const SizedBox(height: 3),
         RichText(text: TextSpan(
           text: value,
-          style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: valueColor ?? CendentColors.ink, letterSpacing: -0.5),
+          style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700, color: CendentColors.ink, letterSpacing: -0.5),
           children: [
             if (unit != null) TextSpan(text: ' $unit', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CendentColors.secondary)),
           ],
@@ -1750,51 +1719,185 @@ class _Metric extends StatelessWidget {
   }
 }
 
-class _Bar extends StatelessWidget {
-  final ForecastBar bar;
-  const _Bar({required this.bar});
+// =============================================================================
+//  SPLIT BAR CHART
+//  Izquierda (S-3…S-act): consumo real — barras grises
+//  Derecha  (S+1…S+4):    proyección IA — barras azules
+//  Divisor vertical "HOY" entre los dos grupos.
+//  Línea de referencia horizontal = promedio de las 4 semanas reales.
+// =============================================================================
+class _SplitBarChart extends StatelessWidget {
+  final List<ForecastBar> forecast;
+  const _SplitBarChart({required this.forecast});
+
+  static const double _axisH  = 20.0; // área de etiquetas eje X
+  static const double _barW   = 22.0; // ancho de cada barra
+  static const Color  _cReal  = Color(0xFF9EA3AC); // pasado: steel muted
+  static const Color  _cProj  = Color(0xFF3987E5); // futuro: blue series-1
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Text(_fmt(bar.value), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: CendentColors.ink)),
-        const SizedBox(height: 6),
-        Expanded(
-          child: LayoutBuilder(builder: (context, c) {
-            final h = c.maxHeight * bar.height;
-            return Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                width: 32, height: h,
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(7), bottom: Radius.circular(3)),
-                  gradient: bar.projected ? null : const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [CendentColors.primaryMid, CendentColors.primary]),
-                  color: bar.projected ? const Color.fromRGBO(144, 202, 249, 0.55) : null,
-                  border: bar.projected ? Border.all(color: CendentColors.primary) : null,
+    if (forecast.isEmpty) return const SizedBox.shrink();
+
+    final maxVal = forecast.map((b) => b.value).reduce((a, b) => a > b ? a : b);
+    // Promedio de las 4 semanas reales → referencia histórica
+    final sumReal = forecast.take(4).fold(0, (s, b) => s + b.value);
+    final avgReal = sumReal / 4.0;
+    final refFrac = maxVal > 0 ? (avgReal / maxVal).clamp(0.0, 1.0) : 0.0;
+
+    return LayoutBuilder(builder: (context, box) {
+      final W      = box.maxWidth;
+      final H      = box.maxHeight;
+      final slotW  = W / 8;
+      final chartH = H - _axisH;
+      final divX   = slotW * 4; // divisor entre slot 4 y 5
+
+      final items = forecast.asMap().entries.expand<Widget>((e) {
+        final i   = e.key;
+        final b   = e.value;
+        final frac = maxVal > 0 ? (b.value / maxVal).clamp(0.0, 1.0) : 0.0;
+        final barH = (chartH * frac).clamp(2.0, chartH - 24);
+        final barL = i * slotW + (slotW - _barW) / 2;
+        final col  = b.projected ? _cProj : _cReal;
+
+        return [
+          // Barra
+          if (b.value > 0) Positioned(
+            left: barL, bottom: _axisH,
+            width: _barW, height: barH,
+            child: Container(
+              decoration: BoxDecoration(
+                color: b.projected ? col.withOpacity(0.88) : col,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+              ),
+            ),
+          ),
+          // Valor encima de la barra
+          if (b.value > 0) Positioned(
+            left: i * slotW, width: slotW,
+            bottom: _axisH + barH + 3,
+            child: Text(
+              _fmtV(b.value),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 10, fontWeight: FontWeight.w700,
+                color: b.projected ? _cProj : const Color(0xFF52514E),
+              ),
+            ),
+          ),
+          // Etiqueta eje X
+          Positioned(
+            left: i * slotW, width: slotW,
+            bottom: 0, height: _axisH,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  b.label,
+                  style: TextStyle(
+                    fontSize: 10, fontWeight: FontWeight.w500,
+                    color: b.projected
+                        ? _cProj.withOpacity(0.75)
+                        : const Color(0xFF898781),
+                  ),
                 ),
               ),
-            );
-          }),
-        ),
-        const SizedBox(height: 8),
-        Text(bar.label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: CendentColors.secondary)),
-      ],
-    );
+            ),
+          ),
+        ];
+      }).toList();
+
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          // Línea de referencia (promedio histórico)
+          if (maxVal > 0 && refFrac > 0.04)
+            Positioned(
+              left: 0, right: 0,
+              bottom: _axisH + chartH * refFrac,
+              child: const _DashedLine(),
+            ),
+          // Etiqueta de la línea de referencia
+          if (maxVal > 0 && refFrac > 0.04)
+            Positioned(
+              right: 2,
+              bottom: _axisH + chartH * refFrac + 3,
+              child: const Text(
+                'prom.',
+                style: TextStyle(fontSize: 8.5, color: Color(0xFF9EA3AC)),
+              ),
+            ),
+          // Divisor vertical "HOY"
+          Positioned(
+            left: divX - 0.75,
+            top: 0, bottom: _axisH,
+            width: 1.5,
+            child: Container(color: const Color(0xFFD0D3DA)),
+          ),
+          // Badge "HOY"
+          Positioned(
+            left: divX - 17, top: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: CendentColors.bg,
+                border: Border.all(color: const Color(0xFFD0D3DA)),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: const Text(
+                'HOY',
+                style: TextStyle(
+                  fontSize: 9, fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4, color: Color(0xFF898781),
+                ),
+              ),
+            ),
+          ),
+          // Barras y etiquetas encima
+          ...items,
+        ],
+      );
+    });
   }
 
-  static String _fmt(int n) {
+  static String _fmtV(int n) {
     final s = n.toString();
     if (s.length <= 3) return s;
     return '${s.substring(0, s.length - 3)}.${s.substring(s.length - 3)}';
   }
 }
 
+// Línea de puntos horizontal para la referencia histórica
+class _DashedLine extends StatelessWidget {
+  const _DashedLine();
+  @override
+  Widget build(BuildContext context) =>
+      const SizedBox(height: 1, child: CustomPaint(painter: _DashPainter(), size: Size.infinite));
+}
+
+class _DashPainter extends CustomPainter {
+  const _DashPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = const Color(0xFF9EA3AC).withOpacity(0.55)
+      ..strokeWidth = 1
+      ..strokeCap = StrokeCap.round;
+    double x = 0;
+    while (x < size.width) {
+      canvas.drawLine(Offset(x, 0), Offset((x + 4).clamp(0, size.width), 0), p);
+      x += 7;
+    }
+  }
+  @override
+  bool shouldRepaint(covariant CustomPainter _) => false;
+}
+
 class _LegendKey extends StatelessWidget {
-  final bool projected;
+  final Color color;
   final String label;
-  const _LegendKey({required this.projected, required this.label});
+  const _LegendKey({required this.color, required this.label});
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -1804,8 +1907,7 @@ class _LegendKey extends StatelessWidget {
           width: 12, height: 12,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(3),
-            color: projected ? const Color.fromRGBO(144, 202, 249, 0.55) : CendentColors.primary,
-            border: projected ? Border.all(color: CendentColors.primary) : null,
+            color: color,
           ),
         ),
         const SizedBox(width: 7),

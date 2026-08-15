@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ResultadoPrediccionDto = exports.DemandaProductoDto = exports.ResultadoEntrenamientoDto = exports.PrediccionProductoDto = void 0;
+exports.ConsumoRealDto = exports.ResultadoPrediccionDto = exports.DemandaProductoDto = exports.ResultadoEntrenamientoDto = exports.PrediccionProductoDto = void 0;
 class PrediccionProductoDto {
     id_producto;
     nombre_producto;
@@ -32,4 +32,12 @@ class ResultadoPrediccionDto {
     predicciones;
 }
 exports.ResultadoPrediccionDto = ResultadoPrediccionDto;
+class ConsumoRealDto {
+    id_sucursal;
+    dias_ventana;
+    semanas;
+    total;
+    productos_activos;
+}
+exports.ConsumoRealDto = ConsumoRealDto;
 //# sourceMappingURL=resultado-entrenamiento.dto.js.map

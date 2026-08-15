@@ -26,6 +26,19 @@ export class AnaliticaController {
   }
 
   @ApiOperation({
+    summary: 'Consumo real de las últimas 4 semanas, agregado por semana',
+    description:
+      'Devuelve el consumo semanal (S-3, S-2, S-1, actual), el total y los ' +
+      'id_producto activos en la ventana. El dashboard lo usa para que las ' +
+      'barras de consumo real y las de proyección LSTM cubran la misma ' +
+      'ventana temporal y el mismo universo de productos.',
+  })
+  @Get('consumo-real/:id_sucursal')
+  consumoReal(@Param('id_sucursal', ParseIntPipe) idSucursal: number) {
+    return this.analiticaService.obtenerConsumoReal(idSucursal);
+  }
+
+  @ApiOperation({
     summary: 'Forzar reentrenamiento LSTM y actualizar caché de predicción',
     description:
       'Lanza generarYGuardar() sincrónicamente. Con 350+ productos puede tardar varios minutos. ' +

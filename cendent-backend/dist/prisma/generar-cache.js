@@ -40,7 +40,7 @@ const ITERACIONES = 500;
 const UMBRAL_ERROR = 0.01;
 const MIN_PUNTOS_SERIE = 14;
 const HORIZONTE_DIAS = 30;
-const FACTOR_AMORTIGUACION = 0.9;
+const FACTOR_AMORTIGUACION = 0.75;
 const VENTANA_ACTIVIDAD_DIAS = 45;
 async function obtenerEgresos(idSucursal) {
     return prisma.movimientos.findMany({

@@ -445,6 +445,16 @@ class ApiService {
     return data is Map ? Map<String, dynamic>.from(data) : null;
   }
 
+  /// GET /analitica/consumo-real/:idSucursal
+  /// Consumo real de las últimas 4 semanas agregado en el backend.
+  /// Se usa en vez de derivarlo de getMovimientos porque ese endpoint corta en
+  /// los últimos 200 registros (~21 días) y dejaba la semana más antigua de la
+  /// ventana casi vacía.
+  Future<Map<String, dynamic>?> getConsumoReal(int idSucursal) async {
+    final data = await _get('/analitica/consumo-real/$idSucursal');
+    return data is Map ? Map<String, dynamic>.from(data) : null;
+  }
+
   /// GET /analitica/entrenar/:idSucursal
   Future<Map<String, dynamic>?> entrenar(int idSucursal) async {
     final data = await _get('/analitica/entrenar/$idSucursal');

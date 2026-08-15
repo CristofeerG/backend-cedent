@@ -1,5 +1,5 @@
 import { PrismaService } from '../prisma/prisma.service';
-import { ResultadoEntrenamientoDto, ResultadoPrediccionDto } from './dto/resultado-entrenamiento.dto';
+import { ConsumoRealDto, ResultadoEntrenamientoDto, ResultadoPrediccionDto } from './dto/resultado-entrenamiento.dto';
 export declare class AnaliticaService {
     private readonly prisma;
     private readonly logger;
@@ -9,6 +9,7 @@ export declare class AnaliticaService {
     private suavizarSerie;
     private crearYEntrenarLSTM;
     private obtenerStockActual;
+    obtenerConsumoReal(idSucursal: number): Promise<ConsumoRealDto>;
     prepararYEntrenar(idSucursal: number): Promise<ResultadoEntrenamientoDto>;
     private generarPrediccion;
     generarYGuardar(idSucursal: number): Promise<ResultadoPrediccionDto & {
