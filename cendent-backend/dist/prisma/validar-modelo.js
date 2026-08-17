@@ -41,7 +41,7 @@ const prisma = new client_1.PrismaClient();
 const ITERACIONES = 500;
 const UMBRAL_ERROR = 0.01;
 const MIN_PUNTOS_VALIDACION = 28;
-const FACTOR_AMORTIGUACION = 0.9;
+const FACTOR_AMORTIGUACION = 0.75;
 function suavizarSerie(serie) {
     return serie.map((_, i) => {
         const inicio = Math.max(0, i - 2);
@@ -242,7 +242,7 @@ function generarReporte(resultados) {
     const L = [];
     L.push('══════════════════════════════════════════════════════════');
     L.push('  VALIDACIÓN DEL MODELO LSTM — SISTEMA CEDENT');
-    L.push('  (clamp [0, 1.2] + damped trend factor=0.9)');
+    L.push(`  (clamp [0, 1.2] + damped trend factor=${FACTOR_AMORTIGUACION})`);
     L.push('══════════════════════════════════════════════════════════');
     L.push('');
     let totValidados = 0;

@@ -27,7 +27,9 @@ const ITERACIONES = 500;
 const UMBRAL_ERROR = 0.01;
 const MIN_PUNTOS_VALIDACION = 28; // mínimo para validación (doble del mínimo de producción)
 // Mismo factor que AnaliticaService — debe mantenerse sincronizado.
-const FACTOR_AMORTIGUACION = 0.9;
+// Se quedó en 0.9 cuando producción bajó a 0.75, así que la validación estaba
+// midiendo un modelo que no era el que corre.
+const FACTOR_AMORTIGUACION = 0.75;
 
 // ─── helpers (copia fiel de AnaliticaService) ────────────────────────────────
 
@@ -282,7 +284,7 @@ function generarReporte(resultados: ResultadoSucursal[]): string {
 
   L.push('══════════════════════════════════════════════════════════');
   L.push('  VALIDACIÓN DEL MODELO LSTM — SISTEMA CEDENT');
-  L.push('  (clamp [0, 1.2] + damped trend factor=0.9)');
+  L.push(`  (clamp [0, 1.2] + damped trend factor=${FACTOR_AMORTIGUACION})`);
   L.push('══════════════════════════════════════════════════════════');
   L.push('');
 
