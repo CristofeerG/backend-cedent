@@ -9,31 +9,6 @@ export declare class MovimientosService {
             nombre_procedimiento: string;
         } | null;
         lotes: ({
-            detalle_transferencia: ({
-                transferencias: ({
-                    sucursales_transferencias_id_sucursal_destinoTosucursales: {
-                        nom_sucursal: string;
-                    } | null;
-                    sucursales_transferencias_id_sucursal_origenTosucursales: {
-                        nom_sucursal: string;
-                    } | null;
-                } & {
-                    estado: string | null;
-                    id_transferencia: number;
-                    id_usuario_envia: number | null;
-                    codigo_trz: string;
-                    fecha_envio: Date | null;
-                    fecha_recepcion: Date | null;
-                    id_sucursal_origen: number | null;
-                    id_sucursal_destino: number | null;
-                    id_usuario_recibe: number | null;
-                }) | null;
-            } & {
-                id_lote: number | null;
-                cantidad: import("@prisma/client/runtime/library").Decimal;
-                id_detalle: number;
-                id_transferencia: number | null;
-            })[];
             productos: {
                 id_producto: number;
                 nombre_mat: string;
@@ -61,15 +36,34 @@ export declare class MovimientosService {
         usuarios: {
             id_usuario: number;
             id_sucursal: number | null;
+            rol: string;
             nom_usuario: string;
             password_hash: string;
-            rol: string;
         } | null;
+        transferencias: ({
+            sucursales_transferencias_id_sucursal_destinoTosucursales: {
+                nom_sucursal: string;
+            } | null;
+            sucursales_transferencias_id_sucursal_origenTosucursales: {
+                nom_sucursal: string;
+            } | null;
+        } & {
+            id_transferencia: number;
+            estado: string | null;
+            codigo_trz: string;
+            id_sucursal_origen: number | null;
+            id_sucursal_destino: number | null;
+            id_usuario_envia: number | null;
+            id_usuario_recibe: number | null;
+            fecha_envio: Date | null;
+            fecha_recepcion: Date | null;
+        }) | null;
     } & {
         id_movimiento: number;
         id_usuario: number | null;
         id_lote: number | null;
         id_kit: number | null;
+        id_transferencia: number | null;
         cantidad: import("@prisma/client/runtime/library").Decimal;
         fecha_hora: Date | null;
         tipo_mov: string | null;
@@ -80,6 +74,7 @@ export declare class MovimientosService {
             id_usuario: number | null;
             id_lote: number | null;
             id_kit: number | null;
+            id_transferencia: number | null;
             cantidad: import("@prisma/client/runtime/library").Decimal;
             fecha_hora: Date | null;
             tipo_mov: string | null;
@@ -97,6 +92,7 @@ export declare class MovimientosService {
             id_usuario: number | null;
             id_lote: number | null;
             id_kit: number | null;
+            id_transferencia: number | null;
             cantidad: import("@prisma/client/runtime/library").Decimal;
             fecha_hora: Date | null;
             tipo_mov: string | null;

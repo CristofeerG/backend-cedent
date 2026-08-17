@@ -89,7 +89,7 @@ pw.Widget _header(String sucursal, String fecha) {
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
             pw.Text(
-              'CENDENT',
+              'CEDENT',
               style: pw.TextStyle(
                 fontSize: 20,
                 fontWeight: pw.FontWeight.bold,
@@ -98,7 +98,7 @@ pw.Widget _header(String sucursal, String fecha) {
               ),
             ),
             pw.Text(
-              "Daniel's CENDENT S.A.  ·  Centro de Especialidades Odontológicas",
+              "Daniel's CEDENT S.A.  ·  Centro de Especialidades Odontológicas",
               style: const pw.TextStyle(fontSize: 7, color: _cSecondary),
             ),
           ],
@@ -138,7 +138,7 @@ pw.Widget _footer(pw.Context ctx) {
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
         pw.Text(
-          '© 2026 Daniel\'s CENDENT S.A. - Todos los derechos reservados',
+          '© 2026 Daniel\'s CEDENT S.A. - Todos los derechos reservados',
           style: const pw.TextStyle(fontSize: 7, color: _cSecondary),
         ),
         pw.Text(

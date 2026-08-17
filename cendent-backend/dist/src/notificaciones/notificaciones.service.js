@@ -26,28 +26,38 @@ let NotificacionesService = NotificacionesService_1 = class NotificacionesServic
     }
     async revisarInventario() {
         this.logger.log('Iniciando revisión automática de inventario...');
+        const sucursales = await this.prisma.sucursales.findMany({
+            where: { estado: true },
+            select: { id_sucursal: true },
+            orderBy: { id_sucursal: 'asc' },
+        });
+        const resultados = await Promise.all(sucursales.map((s) => this.revisarSucursal(s.id_sucursal)));
+        this.logger.log(`Revisión de inventario finalizada (${sucursales.length} sucursal(es)).`);
+        return resultados;
+    }
+    async revisarSucursal(idSucursal) {
         const hoy = new Date();
         hoy.setHours(0, 0, 0, 0);
         const limiteCaducidad = new Date(hoy);
         limiteCaducidad.setDate(limiteCaducidad.getDate() + DIAS_ALERTA_CADUCIDAD);
         const [alertasCaducidad, alertasStock] = await Promise.all([
-            this.consultarLotesPorCaducar(hoy, limiteCaducidad),
-            this.consultarProductosBajoStock(hoy),
+            this.consultarLotesPorCaducar(idSucursal, hoy, limiteCaducidad),
+            this.consultarProductosBajoStock(idSucursal, hoy),
         ]);
         if (alertasCaducidad.length > 0) {
-            this.gateway.emitirAlertaCaducidad(alertasCaducidad);
-            this.logger.warn(`Alerta caducidad emitida: ${alertasCaducidad.length} lote(s) próximos a vencer`);
+            this.gateway.emitirAlertaCaducidad(idSucursal, alertasCaducidad);
+            this.logger.warn(`[sucursal ${idSucursal}] Alerta caducidad: ${alertasCaducidad.length} lote(s) próximos a vencer`);
         }
         if (alertasStock.length > 0) {
-            this.gateway.emitirAlertaStock(alertasStock);
-            this.logger.warn(`Alerta stock emitida: ${alertasStock.length} producto(s) bajo mínimo`);
+            this.gateway.emitirAlertaStock(idSucursal, alertasStock);
+            this.logger.warn(`[sucursal ${idSucursal}] Alerta stock: ${alertasStock.length} producto(s) bajo mínimo`);
         }
-        this.logger.log('Revisión de inventario finalizada.');
-        return { alertasCaducidad, alertasStock };
+        return { id_sucursal: idSucursal, alertasCaducidad, alertasStock };
     }
-    async consultarLotesPorCaducar(hoy, limite) {
+    async consultarLotesPorCaducar(idSucursal, hoy, limite) {
         const lotes = await this.prisma.lotes.findMany({
             where: {
+                id_sucursal: idSucursal,
                 fecha_venc: { gte: hoy, lte: limite },
                 stock_actual: { gt: 0 },
             },
@@ -70,12 +80,15 @@ let NotificacionesService = NotificacionesService_1 = class NotificacionesServic
             };
         });
     }
-    async consultarProductosBajoStock(hoy) {
+    async consultarProductosBajoStock(idSucursal, hoy) {
         const productos = await this.prisma.productos.findMany({
-            where: { stock_min: { gt: 0 } },
+            where: {
+                stock_min: { gt: 0 },
+                lotes: { some: { id_sucursal: idSucursal } },
+            },
             include: {
                 lotes: {
-                    where: { fecha_venc: { gte: hoy } },
+                    where: { id_sucursal: idSucursal, fecha_venc: { gte: hoy } },
                     select: { stock_actual: true },
                 },
             },

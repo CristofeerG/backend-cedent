@@ -11,6 +11,7 @@ import {
   Req,
   UseGuards,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -27,12 +28,39 @@ import { ProductosService } from './productos.service';
 export class ProductosController {
   constructor(private readonly productosService: ProductosService) {}
 
-  @ApiOperation({ summary: 'Obtener inventario consolidado con stock total por producto vigente (filtrado por sucursal del JWT; administrador ve todas)' })
+  @ApiOperation({
+    summary:
+      'Obtener inventario con stock total por producto vigente — sólo la sucursal del usuario',
+    description:
+      'La sucursal sale siempre del JWT. Antes el rol administrador se ' +
+      'saltaba el filtro y recibía el inventario consolidado de todas las ' +
+      'sucursales, de modo que un administrador de una sucursal pequeña veía ' +
+      'sobre todo los productos de la más grande.',
+  })
+  @ApiQuery({ name: 'id_sucursal', required: false, type: Number })
   @Get('inventario')
-  obtenerInventario(@Req() req: any) {
-    const idSucursal = req.user.rol === 'administrador'
-      ? undefined
-      : (req.user.id_sucursal as number);
+  obtenerInventario(
+    @Req() req: any,
+    @Query('id_sucursal') idSucursalQuery?: string,
+  ) {
+    const idSucursal = req.user?.id_sucursal as number | null | undefined;
+    if (idSucursal == null) {
+      throw new BadRequestException('El usuario no tiene una sucursal asignada.');
+    }
+
+    // El cliente manda id_sucursal para separar su caché por sucursal, pero la
+    // sucursal efectiva es la del token. Si no coinciden se rechaza en vez de
+    // ignorar el parámetro en silencio: ese silencio fue justamente lo que
+    // ocultó que el filtro no se estaba aplicando.
+    if (idSucursalQuery !== undefined) {
+      const pedido = Number(idSucursalQuery);
+      if (!Number.isInteger(pedido) || pedido !== idSucursal) {
+        throw new ForbiddenException(
+          'No puede consultar el inventario de otra sucursal.',
+        );
+      }
+    }
+
     return this.productosService.obtenerInventario(idSucursal);
   }
 

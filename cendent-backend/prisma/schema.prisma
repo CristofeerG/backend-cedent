@@ -22,6 +22,18 @@ model detalle_transferencia {
   id_transferencia Int?
   id_lote          Int?
   cantidad         Decimal         @db.Decimal(10, 2)
+  /// "ORIGEN" = línea de la guía de despacho: el lote del que salió la
+  /// mercadería en la sucursal que envía. Se crea al enviar.
+  /// "DESTINO" = comprobante de recepción: el lote al que entró en la sucursal
+  /// que recibe. Se crea al aceptar la transferencia y existe para que el
+  /// historial de movimientos pueda resolver origen y destino de un
+  /// INGRESO_TRANSFERENCIA.
+  ///
+  /// Sin esta columna la tabla hacía los dos trabajos sin distinguirlos, así
+  /// que al recibir una transferencia de 2 productos el detalle pasaba a tener
+  /// 4 filas y la pantalla mostraba cada producto dos veces, con el lote de
+  /// origen y el de destino.
+  rol              String          @default("ORIGEN") @db.VarChar(10)
   lotes            lotes?          @relation(fields: [id_lote], references: [id_lote], onDelete: NoAction, onUpdate: NoAction)
   transferencias   transferencias? @relation(fields: [id_transferencia], references: [id_transferencia], onDelete: Cascade, onUpdate: NoAction)
 }
@@ -50,16 +62,26 @@ model lotes {
 }
 
 model movimientos {
-  id_movimiento Int       @id @default(autoincrement())
-  id_usuario    Int?
-  id_lote       Int?
-  id_kit        Int?
-  cantidad      Decimal   @db.Decimal(10, 2)
-  fecha_hora    DateTime? @default(now()) @db.Timestamp(6)
-  tipo_mov      String?   @db.VarChar(50)
-  kits          kits?     @relation(fields: [id_kit], references: [id_kit], onDelete: NoAction, onUpdate: NoAction)
-  lotes         lotes?    @relation(fields: [id_lote], references: [id_lote], onDelete: NoAction, onUpdate: NoAction)
-  usuarios      usuarios? @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  id_movimiento    Int             @id @default(autoincrement())
+  id_usuario       Int?
+  id_lote          Int?
+  id_kit           Int?
+  /// Transferencia que originó el movimiento (INGRESO_/SALIDA_TRANSFERENCIA).
+  /// Nulo en el resto de tipos.
+  ///
+  /// Antes el vínculo se deducía dando un rodeo: movimiento → lote →
+  /// detalle_transferencia → transferencia. Como al recibir se reutiliza el
+  /// lote de destino si coinciden producto y fecha de vencimiento, un mismo
+  /// lote puede venir de varias transferencias y el rodeo no permitía saber
+  /// cuál correspondía a cada ingreso.
+  id_transferencia Int?
+  cantidad         Decimal         @db.Decimal(10, 2)
+  fecha_hora       DateTime?       @default(now()) @db.Timestamp(6)
+  tipo_mov         String?         @db.VarChar(50)
+  kits             kits?           @relation(fields: [id_kit], references: [id_kit], onDelete: NoAction, onUpdate: NoAction)
+  lotes            lotes?          @relation(fields: [id_lote], references: [id_lote], onDelete: NoAction, onUpdate: NoAction)
+  usuarios         usuarios?       @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  transferencias   transferencias? @relation(fields: [id_transferencia], references: [id_transferencia], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model productos {
@@ -104,6 +126,7 @@ model transferencias {
   fecha_envio                                               DateTime?               @default(now()) @db.Timestamp(6)
   fecha_recepcion                                           DateTime?               @db.Timestamp(6)
   detalle_transferencia                                     detalle_transferencia[]
+  movimientos                                               movimientos[]
   sucursales_transferencias_id_sucursal_destinoTosucursales sucursales?             @relation("transferencias_id_sucursal_destinoTosucursales", fields: [id_sucursal_destino], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction)
   sucursales_transferencias_id_sucursal_origenTosucursales  sucursales?             @relation("transferencias_id_sucursal_origenTosucursales", fields: [id_sucursal_origen], references: [id_sucursal], onDelete: NoAction, onUpdate: NoAction)
   usuarios_transferencias_id_usuario_enviaTousuarios        usuarios?               @relation("transferencias_id_usuario_enviaTousuarios", fields: [id_usuario_envia], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)

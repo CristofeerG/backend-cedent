@@ -281,7 +281,7 @@ function generarReporte(resultados: ResultadoSucursal[]): string {
   const L: string[] = [];
 
   L.push('══════════════════════════════════════════════════════════');
-  L.push('  VALIDACIÓN DEL MODELO LSTM — SISTEMA CENDENT');
+  L.push('  VALIDACIÓN DEL MODELO LSTM — SISTEMA CEDENT');
   L.push('  (clamp [0, 1.2] + damped trend factor=0.9)');
   L.push('══════════════════════════════════════════════════════════');
   L.push('');

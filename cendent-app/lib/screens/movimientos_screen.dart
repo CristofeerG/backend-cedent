@@ -1,6 +1,6 @@
 // =============================================================================
 //  lib/screens/movimientos_screen.dart
-//  Sistema Web Daniel's CENDENT S.A. — Centro de Especialidades Odontológicas
+//  Sistema Web Daniel's CEDENT S.A. — Centro de Especialidades Odontológicas
 //  Pantalla: Movimientos (historial de inventario, solo lectura)
 //
 //  Flutter 3.24 · Material 3 · desktop-first (Flutter Web, ≥1280px).
@@ -227,12 +227,10 @@ Movimiento _fromJson(dynamic j) {
         : null,
     transferencia: isTransfer
         ? () {
-            // Intentar leer origen/destino desde detalle_transferencia
-            final detalles = loteJson?['detalle_transferencia'];
-            final detalle = (detalles is List && detalles.isNotEmpty)
-                ? detalles.first
-                : null;
-            final trz = detalle?['transferencias'];
+            // El movimiento apunta directamente a su transferencia. Antes se
+            // deducía a través del lote, que puede haber participado en varias
+            // y no permitía distinguir cuál.
+            final trz = j['transferencias'];
             final sucOrigen = trz
                 ?['sucursales_transferencias_id_sucursal_origenTosucursales']
                 ?['nom_sucursal']?.toString();

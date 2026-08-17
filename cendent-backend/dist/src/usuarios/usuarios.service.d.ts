@@ -7,8 +7,8 @@ export declare class UsuariosService {
     crearUsuario(dto: CrearUsuarioDto): Promise<{
         id_usuario: number;
         id_sucursal: number | null;
-        nom_usuario: string;
         rol: string;
+        nom_usuario: string;
     }>;
     buscarPorNomUsuario(nomUsuario: string): Promise<({
         sucursales: {
@@ -20,9 +20,9 @@ export declare class UsuariosService {
     } & {
         id_usuario: number;
         id_sucursal: number | null;
+        rol: string;
         nom_usuario: string;
         password_hash: string;
-        rol: string;
     }) | null>;
     obtenerTodos(): Promise<{
         id_usuario: number;
@@ -30,8 +30,8 @@ export declare class UsuariosService {
         sucursales: {
             nom_sucursal: string;
         } | null;
-        nom_usuario: string;
         rol: string;
+        nom_usuario: string;
     }[]>;
     editarUsuario(idUsuario: number, dto: EditarUsuarioDto): Promise<{
         id_usuario: number;
@@ -39,8 +39,8 @@ export declare class UsuariosService {
         sucursales: {
             nom_sucursal: string;
         } | null;
-        nom_usuario: string;
         rol: string;
+        nom_usuario: string;
     }>;
     eliminarUsuario(idUsuario: number): Promise<{
         message: string;
@@ -51,7 +51,7 @@ export declare class UsuariosService {
         sucursales: {
             nom_sucursal: string;
         } | null;
-        nom_usuario: string;
         rol: string;
+        nom_usuario: string;
     }>;
 }

@@ -24,20 +24,21 @@ export class MovimientosService {
           include: {
             productos: true,
             sucursales: true,
-            detalle_transferencia: {
-              take: 1,
-              include: {
-                transferencias: {
-                  include: {
-                    sucursales_transferencias_id_sucursal_origenTosucursales: {
-                      select: { nom_sucursal: true },
-                    },
-                    sucursales_transferencias_id_sucursal_destinoTosucursales: {
-                      select: { nom_sucursal: true },
-                    },
-                  },
-                },
-              },
+          },
+        },
+        // Vínculo directo con la transferencia. Antes se deducía navegando
+        // movimiento → lote → detalle_transferencia → transferencia, y ese
+        // rodeo era ambiguo: al recibir se reutiliza el lote de destino si
+        // coinciden producto y fecha de vencimiento, de modo que un mismo lote
+        // acumula mercadería de varias transferencias y no había forma de
+        // saber cuál correspondía a cada ingreso.
+        transferencias: {
+          include: {
+            sucursales_transferencias_id_sucursal_origenTosucursales: {
+              select: { nom_sucursal: true },
+            },
+            sucursales_transferencias_id_sucursal_destinoTosucursales: {
+              select: { nom_sucursal: true },
             },
           },
         },

@@ -6,6 +6,12 @@ export declare class NotificacionesService {
     private readonly logger;
     constructor(prisma: PrismaService, gateway: NotificacionesGateway);
     revisarInventario(): Promise<{
+        id_sucursal: number;
+        alertasCaducidad: AlertaCaducidadPayload[];
+        alertasStock: AlertaStockPayload[];
+    }[]>;
+    revisarSucursal(idSucursal: number): Promise<{
+        id_sucursal: number;
         alertasCaducidad: AlertaCaducidadPayload[];
         alertasStock: AlertaStockPayload[];
     }>;

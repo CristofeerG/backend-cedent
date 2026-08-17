@@ -89,8 +89,8 @@ function entrenarLSTM(serieNorm) {
         outputSize: 1,
     });
     const smooth = suavizar(serieNorm);
-    red.train([smooth], { iterations: ITERACIONES, errorThresh: UMBRAL_ERROR, log: false });
-    return { red, smooth };
+    const resultado = red.train([smooth], { iterations: ITERACIONES, errorThresh: UMBRAL_ERROR, log: false });
+    return { red, smooth, errorEntrenamiento: resultado.error };
 }
 async function obtenerStock(idSucursal, idsProductos) {
     const hoy = new Date();
@@ -159,7 +159,7 @@ async function generarYGuardarSucursal(idSucursal, nomSucursal) {
             const serie = Array.from(mapaFecha.keys()).sort().map(f => mapaFecha.get(f));
             const max = Math.max(...serie);
             const serieNorm = serie.map(v => v / max);
-            const { red, smooth } = entrenarLSTM(serieNorm);
+            const { red, smooth, errorEntrenamiento } = entrenarLSTM(serieNorm);
             const forecastNorm = red.forecast(smooth, HORIZONTE_DIAS);
             const promSmooth = smooth.reduce((a, b) => a + b, 0) / smooth.length;
             const forecastDamped = forecastNorm.map((v, i) => {
@@ -185,6 +185,7 @@ async function generarYGuardarSucursal(idSucursal, nomSucursal) {
                 dias_para_quiebre: diasQuiebre,
                 sugerencia_compra: sugerencia,
                 prediccion_semanal: prediccionSemanal,
+                error_entrenamiento: Math.round(errorEntrenamiento * 10000) / 10000,
             });
             process.stdout.write(' OK\n');
         }
@@ -192,10 +193,21 @@ async function generarYGuardarSucursal(idSucursal, nomSucursal) {
             process.stdout.write(` ERROR: ${err?.message ?? err}\n`);
         }
         const parcial = [...predicciones].sort((a, b) => a.dias_para_quiebre - b.dias_para_quiebre);
+        const errorPromedio = parcial.length > 0
+            ? Math.round((parcial.reduce((s, p) => s + p.error_entrenamiento, 0) /
+                parcial.length) *
+                10000) / 10000
+            : 0;
+        const resultado = {
+            id_sucursal: idSucursal,
+            total_productos_analizados: parcial.length,
+            error_entrenamiento_promedio: errorPromedio,
+            predicciones: parcial,
+        };
         await prisma.predicciones_cache.upsert({
             where: { id_sucursal: idSucursal },
-            create: { id_sucursal: idSucursal, resultado: { id_sucursal: idSucursal, total_productos_analizados: parcial.length, predicciones: parcial } },
-            update: { resultado: { id_sucursal: idSucursal, total_productos_analizados: parcial.length, predicciones: parcial } },
+            create: { id_sucursal: idSucursal, resultado },
+            update: { resultado },
         });
     }
     console.log(`[${nomSucursal}] Caché guardada (${predicciones.length} producto(s)).`);

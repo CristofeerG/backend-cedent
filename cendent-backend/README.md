@@ -1,6 +1,6 @@
-# CENDENT Backend
+# CEDENT Backend
 
-SISTEMA WEB PARA LA GESTION DE INVENTARIO Y ANALITICA PREDICTIVA PARA EL CENTRO DE ESPECIALIDADES DANIEL’S CENDENT S.A.. Desarrollado con **NestJS**, **PostgreSQL** y **Prisma ORM**.
+SISTEMA WEB PARA LA GESTION DE INVENTARIO Y ANALITICA PREDICTIVA PARA EL CENTRO DE ESPECIALIDADES DANIEL’S CEDENT S.A.. Desarrollado con **NestJS**, **PostgreSQL** y **Prisma ORM**.
 
 ---
 
@@ -131,7 +131,7 @@ El reporte se imprime en consola y se guarda automáticamente en `docs/validacio
 **Resultado obtenido (2026-08-12):**
 ```
 ══════════════════════════════════════════════════════
-  VALIDACIÓN DEL MODELO LSTM — SISTEMA CENDENT
+  VALIDACIÓN DEL MODELO LSTM — SISTEMA CEDENT
 ══════════════════════════════════════════════════════
 
   Sucursal: El Paraiso

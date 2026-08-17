@@ -1,6 +1,8 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { EnviarTransferenciaDto } from './dto/enviar-transferencia.dto';
 import { RecibirTransferenciaDto } from './dto/recibir-transferencia.dto';
+export declare const ROL_ORIGEN = "ORIGEN";
+export declare const ROL_DESTINO = "DESTINO";
 export declare function generarCodigoTrz(): string;
 export declare class TransferenciasService {
     private readonly prisma;
@@ -28,9 +30,10 @@ export declare class TransferenciasService {
             }) | null;
         } & {
             id_lote: number | null;
+            id_transferencia: number | null;
             cantidad: import("@prisma/client/runtime/library").Decimal;
             id_detalle: number;
-            id_transferencia: number | null;
+            rol: string;
         })[];
         sucursales_transferencias_id_sucursal_destinoTosucursales: {
             id_sucursal: number;
@@ -51,15 +54,15 @@ export declare class TransferenciasService {
             nom_usuario: string;
         } | null;
     } & {
-        estado: string | null;
         id_transferencia: number;
-        id_usuario_envia: number | null;
+        estado: string | null;
         codigo_trz: string;
-        fecha_envio: Date | null;
-        fecha_recepcion: Date | null;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
+        id_usuario_envia: number | null;
         id_usuario_recibe: number | null;
+        fecha_envio: Date | null;
+        fecha_recepcion: Date | null;
     })[]>;
     obtenerPorId(idTransferencia: number): Promise<{
         detalle_transferencia: ({
@@ -84,9 +87,10 @@ export declare class TransferenciasService {
             }) | null;
         } & {
             id_lote: number | null;
+            id_transferencia: number | null;
             cantidad: import("@prisma/client/runtime/library").Decimal;
             id_detalle: number;
-            id_transferencia: number | null;
+            rol: string;
         })[];
         sucursales_transferencias_id_sucursal_destinoTosucursales: {
             id_sucursal: number;
@@ -107,37 +111,37 @@ export declare class TransferenciasService {
             nom_usuario: string;
         } | null;
     } & {
-        estado: string | null;
         id_transferencia: number;
-        id_usuario_envia: number | null;
+        estado: string | null;
         codigo_trz: string;
-        fecha_envio: Date | null;
-        fecha_recepcion: Date | null;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
+        id_usuario_envia: number | null;
         id_usuario_recibe: number | null;
+        fecha_envio: Date | null;
+        fecha_recepcion: Date | null;
     }>;
     enviarTransferencia(dto: EnviarTransferenciaDto, idSucursalOrigen: number, idUsuarioEnvia: number): Promise<{
-        estado: string | null;
         id_transferencia: number;
-        id_usuario_envia: number | null;
+        estado: string | null;
         codigo_trz: string;
-        fecha_envio: Date | null;
-        fecha_recepcion: Date | null;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
+        id_usuario_envia: number | null;
         id_usuario_recibe: number | null;
+        fecha_envio: Date | null;
+        fecha_recepcion: Date | null;
     }>;
     cancelarTransferencia(idTransferencia: number): Promise<{
-        estado: string | null;
         id_transferencia: number;
-        id_usuario_envia: number | null;
+        estado: string | null;
         codigo_trz: string;
-        fecha_envio: Date | null;
-        fecha_recepcion: Date | null;
         id_sucursal_origen: number | null;
         id_sucursal_destino: number | null;
+        id_usuario_envia: number | null;
         id_usuario_recibe: number | null;
+        fecha_envio: Date | null;
+        fecha_recepcion: Date | null;
     }>;
     recibirTransferencia(dto: RecibirTransferenciaDto, idUsuarioRecibe: number): Promise<{
         mensaje: string;

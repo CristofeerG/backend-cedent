@@ -1,5 +1,5 @@
 // =============================================================================
-//  lib/screens/home_screen.dart — Dashboard CENDENT
+//  lib/screens/home_screen.dart — Dashboard CEDENT
 // =============================================================================
 
 import 'dart:async';
@@ -146,7 +146,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _api = ApiService();
   int _activeNav = 0;
   StockState? _filtroEstadoInicialInventario;
@@ -158,7 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // ── Notificaciones en tiempo real ──────────────────────────────────────────
   final List<Notificacion> _notificaciones = [];
   int _noLeidas = 0;
-  StreamSubscription<Notificacion>? _socketSub;
+  StreamSubscription<LoteNotificaciones>? _socketSub;
 
   _KpiData _kpis = const _KpiData(
     totalProductos: 0,
@@ -186,29 +186,61 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadData();
     _conectarSocket();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _socketSub?.cancel();
     SocketService().desconectar();
     super.dispose();
   }
 
+  /// Al volver a la pestaña se revisa el estado en vez de confiar en que el
+  /// socket siguió vivo mientras no se miraba.
+  ///
+  /// El backend sólo emite alertas cuando se le piden o en el cron de
+  /// medianoche, así que sin esto la lista se quedaba con lo que hubiera
+  /// llegado al entrar. Volver a pedirlas es inofensivo porque cada evento es
+  /// el estado completo y reemplaza al anterior.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    SocketService().reconectarSiHaceFalta();
+    if (SocketService().conectado) _api.revisarNotificaciones();
+  }
+
   Future<void> _conectarSocket() async {
     final token = await AuthService().getToken();
     if (token == null || !mounted) return;
-    _socketSub = SocketService().stream.listen((notif) {
-      if (mounted) {
-        setState(() {
-          _notificaciones.add(notif);
-          _noLeidas++;
-        });
-      }
+    _socketSub = SocketService().stream.listen((lote) {
+      if (!mounted) return;
+      setState(() {
+        // El lote es el estado completo de ese tipo de alerta, así que
+        // reemplaza a lo que hubiera: recibirlo dos veces (una reconexión hace
+        // que el cliente vuelva a pedir el snapshot) deja la misma lista, no
+        // una duplicada. Un lote vacío limpia el tipo, que es justo lo que
+        // debe pasar cuando la alerta se resuelve.
+        final previos = _notificaciones
+            .where((n) => n.tipo == lote.tipo)
+            .map((n) => n.mensaje)
+            .toSet();
+        // Sólo cuentan como "sin leer" las alertas que no estaban antes: un
+        // snapshot idéntico no debe volver a encender el badge.
+        _noLeidas +=
+            lote.items.where((n) => !previos.contains(n.mensaje)).length;
+        _notificaciones
+          ..removeWhere((n) => n.tipo == lote.tipo)
+          ..addAll(lote.items);
+      });
     });
-    SocketService().conectar(token, onConnected: () {
+    // El callback corre en cada conexión, incluidas las reconexiones: el
+    // backend no reenvía nada por su cuenta, hay que volver a pedirle el estado
+    // cada vez que se recupera el canal.
+    SocketService().conectar(token, idSucursal: widget.idSucursal, onConnected: () {
       _api.revisarNotificaciones();
     });
   }
@@ -1067,29 +1099,51 @@ class _TopBar extends StatelessWidget {
   }
 }
 
+/// Estado real de la conexión de notificaciones.
+///
+/// Antes era un `Text('En línea')` fijo en verde: mentía siempre que el socket
+/// estaba caído. Como las tarjetas del dashboard van por HTTP y seguían
+/// cargando, no había manera de distinguir "no hay alertas" de "no me estoy
+/// enterando de las alertas".
 class _LivePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-      decoration: BoxDecoration(color: CendentColors.greenSoft, borderRadius: BorderRadius.circular(9999)),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _PulseDot(),
-          SizedBox(width: 7),
-          Text('En línea', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: CendentColors.green)),
-        ],
-      ),
+    return ValueListenableBuilder<EstadoConexion>(
+      valueListenable: SocketService().estado,
+      builder: (_, estado, __) {
+        final conectado = estado == EstadoConexion.conectado;
+        final color = conectado ? CendentColors.green : CendentColors.amber;
+        final fondo = conectado ? CendentColors.greenSoft : CendentColors.amberSoft;
+        final texto = conectado ? 'En línea' : 'Reconectando…';
+        return Tooltip(
+          message: conectado
+              ? 'Recibiendo alertas en tiempo real.'
+              : 'Sin conexión con el servidor de alertas: las notificaciones '
+                  'pueden estar desactualizadas.',
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+            decoration: BoxDecoration(color: fondo, borderRadius: BorderRadius.circular(9999)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _PulseDot(color: color),
+                const SizedBox(width: 7),
+                Text(texto, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
 
 class _PulseDot extends StatelessWidget {
-  const _PulseDot();
+  final Color color;
+  const _PulseDot({required this.color});
   @override
   Widget build(BuildContext context) {
-    return Container(width: 7, height: 7, decoration: const BoxDecoration(color: CendentColors.green, shape: BoxShape.circle));
+    return Container(width: 7, height: 7, decoration: BoxDecoration(color: color, shape: BoxShape.circle));
   }
 }
 

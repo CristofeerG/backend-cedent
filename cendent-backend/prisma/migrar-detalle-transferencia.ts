@@ -67,6 +67,9 @@ async function main() {
         id_transferencia: idTransferencia,
         id_lote: movimiento.id_lote,
         cantidad: movimiento.cantidad,
+        // Es un comprobante de recepción, no una línea de la guía de despacho:
+        // sin este rol volvería a duplicar el detalle de la transferencia.
+        rol: 'DESTINO',
       },
     });
     migrados++;

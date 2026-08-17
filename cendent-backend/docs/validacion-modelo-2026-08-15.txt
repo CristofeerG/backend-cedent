@@ -1,0 +1,58 @@
+══════════════════════════════════════════════════════════
+  VALIDACIÓN DEL MODELO LSTM — SISTEMA CENDENT
+  (clamp [0, 1.2] + damped trend factor=0.9)
+══════════════════════════════════════════════════════════
+
+  Sucursal: Juan Montalvo
+  ──────────────────────────────────────────────────────
+  Productos validados             :  353
+  Productos omitidos (< 28d)      :    1
+
+  ── Métrica 1: horizonte dinámico (split 80/20) ──
+  Horizonte promedio              :   35 d
+  MAE promedio                    :   0.34 u/día
+  RMSE promedio                   :   0.72 u/día
+  Precisión direccional           :   61.7 %
+  Error de entrenamiento avg      : 0.0221
+
+  ── Métrica 2: horizonte 30 d (o máximo posible) ─
+  Productos con métrica 30d       :  353
+  Horizonte promedio              :   30 d
+  MAE (30d) promedio              :   0.34 u/día
+  RMSE (30d) promedio             :   0.75 u/día
+
+  Sucursal: Durán
+  ──────────────────────────────────────────────────────
+  Productos validados             :    7
+  Productos omitidos (< 28d)      :    2
+
+  ── Métrica 1: horizonte dinámico (split 80/20) ──
+  Horizonte promedio              :   31 d
+  MAE promedio                    :   7.63 u/día
+  RMSE promedio                   :   8.67 u/día
+  Precisión direccional           :   49.5 %
+  Error de entrenamiento avg      : 0.0513
+
+  ── Métrica 2: horizonte 30 d (o máximo posible) ─
+  Productos con métrica 30d       :    7
+  Horizonte promedio              :   30 d
+  MAE (30d) promedio              :   7.14 u/día
+  RMSE (30d) promedio             :   8.10 u/día
+
+──────────────────────────────────────────────────────────
+  RESUMEN GLOBAL
+──────────────────────────────────────────────────────────
+  Total productos validados       :  360
+
+  ── Métrica 1 (horizonte dinámico) ────────────────
+  MAE global                      :   0.49 u/día
+  RMSE global                     :   0.88 u/día
+  Precisión direccional           :   61.5 %
+
+  ── Métrica 2 (horizonte 30 días) ─────────────────
+  Productos con métrica 30d       :  360
+  MAE global (30d)                :   0.48 u/día
+  RMSE global (30d)               :   0.89 u/día
+══════════════════════════════════════════════════════════
+  Generado: 15/8/2026, 6:24:22 p. m.
+══════════════════════════════════════════════════════════

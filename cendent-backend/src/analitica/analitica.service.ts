@@ -108,6 +108,24 @@ export class AnaliticaService {
     return { red, serieSmooth, errorEntrenamiento: resultado.error as number };
   }
 
+  /**
+   * Devuelve el control al event loop de Node antes de seguir entrenando.
+   *
+   * `red.train()` de brain.js es síncrono y tarda ~800 ms por producto. Con los
+   * 354 productos del catálogo, el bucle dejaba el proceso bloqueado unos 5
+   * minutos: durante ese tiempo el servidor no atendía ninguna petición HTTP ni
+   * respondía los ping/pong de Socket.IO. A los ~45 s de silencio (pingInterval
+   * 25 s + pingTimeout 20 s) el cliente daba la conexión por muerta y
+   * reconectaba, con lo que volvía a pedir el snapshot de notificaciones.
+   *
+   * Cediendo entre producto y producto el refresco sigue tardando lo mismo y
+   * sigue ocupando un solo hilo, pero el bloqueo máximo pasa de ~5 minutos a lo
+   * que dura un entrenamiento suelto, y el resto de peticiones se intercalan.
+   */
+  private cederEventLoop(): Promise<void> {
+    return new Promise((resolve) => setImmediate(resolve));
+  }
+
   private async obtenerStockActual(idSucursal: number, idsProductos: number[]): Promise<Map<number, number>> {
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
@@ -224,6 +242,8 @@ export class AnaliticaService {
       if (max === 0) continue;
 
       const serieNorm = serie.map((v) => v / max);
+      // Ceder antes de cada entrenamiento: es el único tramo caro del bucle.
+      await this.cederEventLoop();
       const { red, serieSmooth, errorEntrenamiento } = this.crearYEntrenarLSTM(serieNorm);
 
       const prediccionNorm: number = red.run(serieSmooth);
@@ -288,7 +308,9 @@ export class AnaliticaService {
       if (max === 0) continue;
 
       const serieNorm = serie.map((v) => v / max);
-      const { red, serieSmooth } = this.crearYEntrenarLSTM(serieNorm);
+      // Ceder antes de cada entrenamiento: es el único tramo caro del bucle.
+      await this.cederEventLoop();
+      const { red, serieSmooth, errorEntrenamiento } = this.crearYEntrenarLSTM(serieNorm);
 
       // Proyectar los próximos HORIZONTE_DIAS valores normalizados
       const forecastNorm: number[] = red.forecast(serieSmooth, HORIZONTE_DIAS);
@@ -345,6 +367,7 @@ export class AnaliticaService {
         dias_para_quiebre: diasParaQuiebre,
         sugerencia_compra: sugerenciaCompra,
         prediccion_semanal: prediccionSemanal,
+        error_entrenamiento: Math.round(errorEntrenamiento * 10000) / 10000,
       });
     }
 
@@ -352,9 +375,25 @@ export class AnaliticaService {
 
     this.logger.log(`Predicción finalizada: ${predicciones.length} producto(s) para sucursal ${idSucursal}.`);
 
+    // Error promedio de entrenamiento de la sucursal: indicador global de qué
+    // tan bien ajustó el LSTM esta corrida. Se calcula sobre las predicciones
+    // efectivamente generadas (las que pasaron los filtros de serie mínima e
+    // inactividad), por lo que hay que proteger la división cuando el array
+    // queda vacío: sin productos entrenados el promedio no existe, y devolver
+    // 0 lo haría indistinguible de un ajuste perfecto.
+    const errorPromedio =
+      predicciones.length > 0
+        ? Math.round(
+            (predicciones.reduce((s, p) => s + p.error_entrenamiento, 0) /
+              predicciones.length) *
+              10000,
+          ) / 10000
+        : 0;
+
     return {
       id_sucursal: idSucursal,
       total_productos_analizados: predicciones.length,
+      error_entrenamiento_promedio: errorPromedio,
       predicciones,
     };
   }

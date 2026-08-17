@@ -1,6 +1,6 @@
 // =============================================================================
 //  lib/screens/kits_screen.dart
-//  Sistema Web Daniel's CENDENT S.A. — Centro de Especialidades Odontológicas
+//  Sistema Web Daniel's CEDENT S.A. — Centro de Especialidades Odontológicas
 //  Kits de Procedimientos — Flutter 3.24 · Material 3 · desktop-first
 //
 //  API real:

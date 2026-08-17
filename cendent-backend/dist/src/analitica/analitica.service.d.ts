@@ -8,6 +8,7 @@ export declare class AnaliticaService {
     private agruparConsumosPorFecha;
     private suavizarSerie;
     private crearYEntrenarLSTM;
+    private cederEventLoop;
     private obtenerStockActual;
     obtenerConsumoReal(idSucursal: number): Promise<ConsumoRealDto>;
     prepararYEntrenar(idSucursal: number): Promise<ResultadoEntrenamientoDto>;

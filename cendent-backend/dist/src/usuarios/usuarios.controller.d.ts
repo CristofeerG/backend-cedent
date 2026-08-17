@@ -7,8 +7,8 @@ export declare class UsuariosController {
     crearUsuario(dto: CrearUsuarioDto): Promise<{
         id_usuario: number;
         id_sucursal: number | null;
-        nom_usuario: string;
         rol: string;
+        nom_usuario: string;
     }>;
     obtenerTodos(): Promise<{
         id_usuario: number;
@@ -16,8 +16,8 @@ export declare class UsuariosController {
         sucursales: {
             nom_sucursal: string;
         } | null;
-        nom_usuario: string;
         rol: string;
+        nom_usuario: string;
     }[]>;
     obtenerPorId(id: number): Promise<{
         id_usuario: number;
@@ -25,8 +25,8 @@ export declare class UsuariosController {
         sucursales: {
             nom_sucursal: string;
         } | null;
-        nom_usuario: string;
         rol: string;
+        nom_usuario: string;
     }>;
     editarUsuario(id: number, dto: EditarUsuarioDto): Promise<{
         id_usuario: number;
@@ -34,8 +34,8 @@ export declare class UsuariosController {
         sucursales: {
             nom_sucursal: string;
         } | null;
-        nom_usuario: string;
         rol: string;
+        nom_usuario: string;
     }>;
     eliminarUsuario(id: number): Promise<{
         message: string;

@@ -18,11 +18,13 @@ export declare class DemandaProductoDto {
     consumo_predicho_30_dias: number;
     dias_para_quiebre: number;
     sugerencia_compra: number;
+    error_entrenamiento: number;
     prediccion_semanal: number[];
 }
 export declare class ResultadoPrediccionDto {
     id_sucursal: number;
     total_productos_analizados: number;
+    error_entrenamiento_promedio: number;
     predicciones: DemandaProductoDto[];
 }
 export declare class ConsumoRealDto {

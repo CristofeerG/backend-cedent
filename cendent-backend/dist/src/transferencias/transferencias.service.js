@@ -9,10 +9,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.TransferenciasService = void 0;
+exports.TransferenciasService = exports.ROL_DESTINO = exports.ROL_ORIGEN = void 0;
 exports.generarCodigoTrz = generarCodigoTrz;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+exports.ROL_ORIGEN = 'ORIGEN';
+exports.ROL_DESTINO = 'DESTINO';
 function generarCodigoTrz() {
     const hoy = new Date();
     const fechaStr = hoy.toISOString().slice(0, 10).replace(/-/g, '');
@@ -33,7 +35,10 @@ let TransferenciasService = class TransferenciasService {
                 ],
             },
             include: {
-                detalle_transferencia: { include: { lotes: { include: { productos: true } } } },
+                detalle_transferencia: {
+                    where: { rol: exports.ROL_ORIGEN },
+                    include: { lotes: { include: { productos: true } } },
+                },
                 sucursales_transferencias_id_sucursal_origenTosucursales: true,
                 sucursales_transferencias_id_sucursal_destinoTosucursales: true,
                 usuarios_transferencias_id_usuario_enviaTousuarios: { select: { nom_usuario: true } },
@@ -46,7 +51,10 @@ let TransferenciasService = class TransferenciasService {
         const transferencia = await this.prisma.transferencias.findUnique({
             where: { id_transferencia: idTransferencia },
             include: {
-                detalle_transferencia: { include: { lotes: { include: { productos: true } } } },
+                detalle_transferencia: {
+                    where: { rol: exports.ROL_ORIGEN },
+                    include: { lotes: { include: { productos: true } } },
+                },
                 sucursales_transferencias_id_sucursal_origenTosucursales: true,
                 sucursales_transferencias_id_sucursal_destinoTosucursales: true,
                 usuarios_transferencias_id_usuario_enviaTousuarios: { select: { nom_usuario: true } },
@@ -126,6 +134,7 @@ let TransferenciasService = class TransferenciasService {
                             id_transferencia: transferencia.id_transferencia,
                             id_lote: loteDesc.id_lote,
                             cantidad: loteDesc.cantidadDescontada,
+                            rol: exports.ROL_ORIGEN,
                         },
                     });
                     await tx.movimientos.create({
@@ -135,6 +144,7 @@ let TransferenciasService = class TransferenciasService {
                             id_kit: null,
                             cantidad: loteDesc.cantidadDescontada,
                             tipo_mov: 'SALIDA_TRANSFERENCIA',
+                            id_transferencia: transferencia.id_transferencia,
                         },
                     });
                 }
@@ -145,7 +155,7 @@ let TransferenciasService = class TransferenciasService {
     async cancelarTransferencia(idTransferencia) {
         const transferencia = await this.prisma.transferencias.findUnique({
             where: { id_transferencia: idTransferencia },
-            include: { detalle_transferencia: true },
+            include: { detalle_transferencia: { where: { rol: exports.ROL_ORIGEN } } },
         });
         if (!transferencia)
             throw new common_1.NotFoundException(`Transferencia ${idTransferencia} no encontrada`);
@@ -171,7 +181,10 @@ let TransferenciasService = class TransferenciasService {
             const transferencia = await tx.transferencias.findUnique({
                 where: { codigo_trz: dto.codigo_trz },
                 include: {
-                    detalle_transferencia: { include: { lotes: true } },
+                    detalle_transferencia: {
+                        where: { rol: exports.ROL_ORIGEN },
+                        include: { lotes: true },
+                    },
                 },
             });
             if (!transferencia) {
@@ -227,6 +240,7 @@ let TransferenciasService = class TransferenciasService {
                         id_kit: null,
                         cantidad: cantidadRecibida,
                         tipo_mov: 'INGRESO_TRANSFERENCIA',
+                        id_transferencia: transferencia.id_transferencia,
                     },
                 });
                 await tx.detalle_transferencia.create({
@@ -234,6 +248,7 @@ let TransferenciasService = class TransferenciasService {
                         id_transferencia: transferencia.id_transferencia,
                         id_lote: loteResultante.id_lote,
                         cantidad: cantidadRecibida,
+                        rol: exports.ROL_DESTINO,
                     },
                 });
                 lotesCreados.push(loteResultante);

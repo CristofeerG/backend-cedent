@@ -1,3 +1,5 @@
+import { ApiProperty } from '@nestjs/swagger';
+
 export class PrediccionProductoDto {
   id_producto: number;
   nombre_producto: string;
@@ -20,6 +22,14 @@ export class DemandaProductoDto {
   consumo_predicho_30_dias: number;
   dias_para_quiebre: number;
   sugerencia_compra: number;
+  @ApiProperty({
+    example: 0.0087,
+    description:
+      'Pérdida final de entrenamiento del LSTM para este producto (MSE sobre ' +
+      'la serie normalizada y suavizada). Más bajo = mejor ajuste del modelo ' +
+      'a su historial de consumo.',
+  })
+  error_entrenamiento: number;
   /**
    * Consumo predicho desglosado en 4 semanas (unidades).
    * Índices: [0] días 1-7, [1] días 8-14, [2] días 15-21, [3] días 22-30.
@@ -32,6 +42,14 @@ export class DemandaProductoDto {
 export class ResultadoPrediccionDto {
   id_sucursal: number;
   total_productos_analizados: number;
+  @ApiProperty({
+    example: 0.0142,
+    description:
+      'Promedio de la pérdida final de entrenamiento del LSTM (MSE) sobre ' +
+      'todos los productos analizados de la sucursal. Más bajo = mejor ' +
+      'ajuste global del modelo. Vale 0 cuando no se entrenó ningún producto.',
+  })
+  error_entrenamiento_promedio: number;
   predicciones: DemandaProductoDto[];
 }
 

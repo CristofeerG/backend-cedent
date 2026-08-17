@@ -26,10 +26,17 @@ let ProductosController = class ProductosController {
     constructor(productosService) {
         this.productosService = productosService;
     }
-    obtenerInventario(req) {
-        const idSucursal = req.user.rol === 'administrador'
-            ? undefined
-            : req.user.id_sucursal;
+    obtenerInventario(req, idSucursalQuery) {
+        const idSucursal = req.user?.id_sucursal;
+        if (idSucursal == null) {
+            throw new common_1.BadRequestException('El usuario no tiene una sucursal asignada.');
+        }
+        if (idSucursalQuery !== undefined) {
+            const pedido = Number(idSucursalQuery);
+            if (!Number.isInteger(pedido) || pedido !== idSucursal) {
+                throw new common_1.ForbiddenException('No puede consultar el inventario de otra sucursal.');
+            }
+        }
         return this.productosService.obtenerInventario(idSucursal);
     }
     buscarPorNombre(nombre) {
@@ -55,11 +62,19 @@ let ProductosController = class ProductosController {
 };
 exports.ProductosController = ProductosController;
 __decorate([
-    (0, swagger_1.ApiOperation)({ summary: 'Obtener inventario consolidado con stock total por producto vigente (filtrado por sucursal del JWT; administrador ve todas)' }),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Obtener inventario con stock total por producto vigente — sólo la sucursal del usuario',
+        description: 'La sucursal sale siempre del JWT. Antes el rol administrador se ' +
+            'saltaba el filtro y recibía el inventario consolidado de todas las ' +
+            'sucursales, de modo que un administrador de una sucursal pequeña veía ' +
+            'sobre todo los productos de la más grande.',
+    }),
+    (0, swagger_1.ApiQuery)({ name: 'id_sucursal', required: false, type: Number }),
     (0, common_1.Get)('inventario'),
     __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Query)('id_sucursal')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ProductosController.prototype, "obtenerInventario", null);
 __decorate([

@@ -15,7 +15,7 @@ async function bootstrap() {
   app.enableCors();
 
   const configSwagger = new DocumentBuilder()
-    .setTitle('API CENDENT')
+    .setTitle('API CEDENT')
     .setDescription('Sistema de Gestión Logística y Analítica Predictiva')
     .setVersion('1.0')
     .addBearerAuth()

@@ -8,6 +8,18 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EnviarTransferenciaDto } from './dto/enviar-transferencia.dto';
 import { RecibirTransferenciaDto } from './dto/recibir-transferencia.dto';
 
+/**
+ * Roles de una fila de `detalle_transferencia`.
+ *
+ * La tabla guarda dos cosas distintas para la misma transferencia: la guía de
+ * despacho (qué lotes salieron del origen) y el comprobante de recepción (a qué
+ * lotes entró la mercadería en el destino). El segundo existe para que el
+ * historial de movimientos pueda resolver origen y destino de un
+ * INGRESO_TRANSFERENCIA, cuyo lote sólo existe en la sucursal que recibe.
+ */
+export const ROL_ORIGEN = 'ORIGEN';
+export const ROL_DESTINO = 'DESTINO';
+
 export function generarCodigoTrz(): string {
   const hoy = new Date();
   const fechaStr = hoy.toISOString().slice(0, 10).replace(/-/g, '');
@@ -28,7 +40,14 @@ export class TransferenciasService {
         ],
       },
       include: {
-        detalle_transferencia: { include: { lotes: { include: { productos: true } } } },
+        // Sólo la guía de despacho. Las filas DESTINO son el comprobante de
+        // recepción y describen los mismos productos con el lote de la sucursal
+        // que recibe: incluirlas hacía que una transferencia de 2 productos se
+        // viera como 4 líneas, cada producto repetido con dos códigos de lote.
+        detalle_transferencia: {
+          where: { rol: ROL_ORIGEN },
+          include: { lotes: { include: { productos: true } } },
+        },
         sucursales_transferencias_id_sucursal_origenTosucursales: true,
         sucursales_transferencias_id_sucursal_destinoTosucursales: true,
         usuarios_transferencias_id_usuario_enviaTousuarios: { select: { nom_usuario: true } },
@@ -42,7 +61,14 @@ export class TransferenciasService {
     const transferencia = await this.prisma.transferencias.findUnique({
       where: { id_transferencia: idTransferencia },
       include: {
-        detalle_transferencia: { include: { lotes: { include: { productos: true } } } },
+        // Sólo la guía de despacho. Las filas DESTINO son el comprobante de
+        // recepción y describen los mismos productos con el lote de la sucursal
+        // que recibe: incluirlas hacía que una transferencia de 2 productos se
+        // viera como 4 líneas, cada producto repetido con dos códigos de lote.
+        detalle_transferencia: {
+          where: { rol: ROL_ORIGEN },
+          include: { lotes: { include: { productos: true } } },
+        },
         sucursales_transferencias_id_sucursal_origenTosucursales: true,
         sucursales_transferencias_id_sucursal_destinoTosucursales: true,
         usuarios_transferencias_id_usuario_enviaTousuarios: { select: { nom_usuario: true } },
@@ -163,6 +189,7 @@ export class TransferenciasService {
               id_transferencia: transferencia.id_transferencia,
               id_lote: loteDesc.id_lote,
               cantidad: loteDesc.cantidadDescontada,
+              rol: ROL_ORIGEN,
             },
           });
 
@@ -173,6 +200,7 @@ export class TransferenciasService {
               id_kit: null,
               cantidad: loteDesc.cantidadDescontada,
               tipo_mov: 'SALIDA_TRANSFERENCIA',
+              id_transferencia: transferencia.id_transferencia,
             },
           });
         }
@@ -185,7 +213,9 @@ export class TransferenciasService {
   async cancelarTransferencia(idTransferencia: number) {
     const transferencia = await this.prisma.transferencias.findUnique({
       where: { id_transferencia: idTransferencia },
-      include: { detalle_transferencia: true },
+      // Devolver el stock sólo a los lotes de origen: son los que se
+      // descontaron al enviar.
+      include: { detalle_transferencia: { where: { rol: ROL_ORIGEN } } },
     });
     if (!transferencia)
       throw new NotFoundException(`Transferencia ${idTransferencia} no encontrada`);
@@ -215,7 +245,14 @@ export class TransferenciasService {
       const transferencia = await tx.transferencias.findUnique({
         where: { codigo_trz: dto.codigo_trz },
         include: {
-          detalle_transferencia: { include: { lotes: true } },
+          // Sólo la guía de despacho: es lo que hay que ingresar en destino.
+          // Hoy una transferencia EN_TRANSITO no tiene filas DESTINO todavía,
+          // pero recorrerlas sin filtrar sumaría el stock dos veces si alguna
+          // vez llegaran a coexistir.
+          detalle_transferencia: {
+            where: { rol: ROL_ORIGEN },
+            include: { lotes: true },
+          },
         },
       });
 
@@ -288,16 +325,23 @@ export class TransferenciasService {
             id_kit: null,
             cantidad: cantidadRecibida,
             tipo_mov: 'INGRESO_TRANSFERENCIA',
+            // Vínculo directo: el lote de destino puede acumular mercadería de
+            // varias transferencias, así que no sirve para identificar de cuál
+            // vino este ingreso.
+            id_transferencia: transferencia.id_transferencia,
           },
         });
 
         // Vincular el lote destino con la transferencia para que el historial
         // de movimientos pueda mostrar el origen y destino correctamente.
+        // Marcada como DESTINO: no forma parte de la guía de despacho y no debe
+        // aparecer en el detalle de la transferencia.
         await tx.detalle_transferencia.create({
           data: {
             id_transferencia: transferencia.id_transferencia,
             id_lote: loteResultante.id_lote,
             cantidad: cantidadRecibida,
+            rol: ROL_DESTINO,
           },
         });
 

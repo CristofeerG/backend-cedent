@@ -22,7 +22,9 @@
     "seed:consumos": "ts-node --project tsconfig.seed.json prisma/seed-consumos.ts",
     "generar:cache": "ts-node --project tsconfig.seed.json prisma/generar-cache.ts",
     "validar:modelo": "ts-node --project tsconfig.seed.json prisma/validar-modelo.ts",
-    "migrar:detalle": "ts-node --project tsconfig.seed.json prisma/migrar-detalle-transferencia.ts"
+    "migrar:detalle": "ts-node --project tsconfig.seed.json prisma/migrar-detalle-transferencia.ts",
+    "migrar:rol-detalle": "ts-node --project tsconfig.seed.json prisma/migrar-rol-detalle.ts",
+    "migrar:transferencia-movimientos": "ts-node --project tsconfig.seed.json prisma/migrar-transferencia-movimientos.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

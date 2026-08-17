@@ -115,6 +115,9 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
         });
         return { red, serieSmooth, errorEntrenamiento: resultado.error };
     }
+    cederEventLoop() {
+        return new Promise((resolve) => setImmediate(resolve));
+    }
     async obtenerStockActual(idSucursal, idsProductos) {
         const hoy = new Date();
         hoy.setHours(0, 0, 0, 0);
@@ -201,6 +204,7 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
             if (max === 0)
                 continue;
             const serieNorm = serie.map((v) => v / max);
+            await this.cederEventLoop();
             const { red, serieSmooth, errorEntrenamiento } = this.crearYEntrenarLSTM(serieNorm);
             const prediccionNorm = red.run(serieSmooth);
             predicciones.push({
@@ -250,7 +254,8 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
             if (max === 0)
                 continue;
             const serieNorm = serie.map((v) => v / max);
-            const { red, serieSmooth } = this.crearYEntrenarLSTM(serieNorm);
+            await this.cederEventLoop();
+            const { red, serieSmooth, errorEntrenamiento } = this.crearYEntrenarLSTM(serieNorm);
             const forecastNorm = red.forecast(serieSmooth, HORIZONTE_DIAS);
             const promSmooth = serieSmooth.reduce((a, b) => a + b, 0) / serieSmooth.length;
             const forecastDamped = forecastNorm.map((v, i) => {
@@ -282,13 +287,20 @@ let AnaliticaService = AnaliticaService_1 = class AnaliticaService {
                 dias_para_quiebre: diasParaQuiebre,
                 sugerencia_compra: sugerenciaCompra,
                 prediccion_semanal: prediccionSemanal,
+                error_entrenamiento: Math.round(errorEntrenamiento * 10000) / 10000,
             });
         }
         predicciones.sort((a, b) => a.dias_para_quiebre - b.dias_para_quiebre);
         this.logger.log(`Predicción finalizada: ${predicciones.length} producto(s) para sucursal ${idSucursal}.`);
+        const errorPromedio = predicciones.length > 0
+            ? Math.round((predicciones.reduce((s, p) => s + p.error_entrenamiento, 0) /
+                predicciones.length) *
+                10000) / 10000
+            : 0;
         return {
             id_sucursal: idSucursal,
             total_productos_analizados: predicciones.length,
+            error_entrenamiento_promedio: errorPromedio,
             predicciones,
         };
     }

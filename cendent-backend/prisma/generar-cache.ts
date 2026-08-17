@@ -67,8 +67,8 @@ function entrenarLSTM(serieNorm: number[]) {
     outputSize: 1,
   });
   const smooth = suavizar(serieNorm);
-  red.train([smooth], { iterations: ITERACIONES, errorThresh: UMBRAL_ERROR, log: false });
-  return { red, smooth };
+  const resultado = red.train([smooth], { iterations: ITERACIONES, errorThresh: UMBRAL_ERROR, log: false });
+  return { red, smooth, errorEntrenamiento: resultado.error as number };
 }
 
 async function obtenerStock(idSucursal: number, idsProductos: number[]) {
@@ -149,7 +149,7 @@ async function generarYGuardarSucursal(idSucursal: number, nomSucursal: string) 
       const max       = Math.max(...serie);
       const serieNorm = serie.map(v => v / max);
 
-      const { red, smooth } = entrenarLSTM(serieNorm);
+      const { red, smooth, errorEntrenamiento } = entrenarLSTM(serieNorm);
       const forecastNorm: number[] = red.forecast(smooth, HORIZONTE_DIAS);
 
       // Clamp [0, 1.2] + damped trend hacia el promedio histórico normalizado.
@@ -189,6 +189,7 @@ async function generarYGuardarSucursal(idSucursal: number, nomSucursal: string) 
         dias_para_quiebre: diasQuiebre,
         sugerencia_compra: sugerencia,
         prediccion_semanal: prediccionSemanal,
+        error_entrenamiento: Math.round(errorEntrenamiento * 10000) / 10000,
       });
 
       process.stdout.write(' OK\n');
@@ -198,10 +199,27 @@ async function generarYGuardarSucursal(idSucursal: number, nomSucursal: string) 
 
     // Upsert incremental: guarda progreso en DB después de cada producto
     const parcial = [...predicciones].sort((a: any, b: any) => a.dias_para_quiebre - b.dias_para_quiebre);
+    // Mismo promedio que calcula AnaliticaService.generarPrediccion: la caché
+    // escrita aquí debe traer el campo, o el dashboard mostraría "Sin calcular".
+    // Se protege la división porque el upsert corre también con la lista vacía.
+    const errorPromedio =
+      parcial.length > 0
+        ? Math.round(
+            (parcial.reduce((s: number, p: any) => s + p.error_entrenamiento, 0) /
+              parcial.length) *
+              10000,
+          ) / 10000
+        : 0;
+    const resultado = {
+      id_sucursal: idSucursal,
+      total_productos_analizados: parcial.length,
+      error_entrenamiento_promedio: errorPromedio,
+      predicciones: parcial,
+    } as any;
     await prisma.predicciones_cache.upsert({
       where:  { id_sucursal: idSucursal },
-      create: { id_sucursal: idSucursal, resultado: { id_sucursal: idSucursal, total_productos_analizados: parcial.length, predicciones: parcial } as any },
-      update: { resultado: { id_sucursal: idSucursal, total_productos_analizados: parcial.length, predicciones: parcial } as any },
+      create: { id_sucursal: idSucursal, resultado },
+      update: { resultado },
     });
   }
 

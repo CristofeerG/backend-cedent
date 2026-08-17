@@ -1,4 +1,6 @@
-import { Server } from 'socket.io';
+import { JwtService } from '@nestjs/jwt';
+import { OnGatewayConnection } from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
 export interface AlertaCaducidadPayload {
     id_lote: number;
     codigo_lote: string | null;
@@ -14,8 +16,13 @@ export interface AlertaStockPayload {
     stock_total: number;
     stock_min: number;
 }
-export declare class NotificacionesGateway {
+export declare class NotificacionesGateway implements OnGatewayConnection {
+    private readonly jwtService;
+    private readonly logger;
     servidor: Server;
-    emitirAlertaCaducidad(lotes: AlertaCaducidadPayload[]): void;
-    emitirAlertaStock(productos: AlertaStockPayload[]): void;
+    constructor(jwtService: JwtService);
+    handleConnection(cliente: Socket): void;
+    private extraerToken;
+    emitirAlertaCaducidad(idSucursal: number, lotes: AlertaCaducidadPayload[]): void;
+    emitirAlertaStock(idSucursal: number, productos: AlertaStockPayload[]): void;
 }

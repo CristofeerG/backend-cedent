@@ -1,6 +1,6 @@
 // =============================================================================
 //  lib/screens/analitica_screen.dart
-//  Sistema Web Daniel's CENDENT S.A. — Centro de Especialidades Odontológicas
+//  Sistema Web Daniel's CEDENT S.A. — Centro de Especialidades Odontológicas
 //  Analítica Predictiva — Flutter 3.24 · Material 3 · desktop-first
 //
 //  API:

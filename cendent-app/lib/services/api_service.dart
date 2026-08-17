@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'auth_service.dart';
 
@@ -431,12 +432,20 @@ class ApiService {
 
   /// POST /notificaciones/revisar — dispara chequeo inmediato; el backend emite por Socket.IO
   Future<void> revisarNotificaciones() async {
+    // El fallo no debe romper la pantalla, pero tampoco puede ser invisible:
+    // con el `catch (_) {}` mudo que había antes, un 401 o un 400 dejaba la
+    // campana vacía sin dejar rastro en ningún sitio.
     try {
-      await http.post(
+      final res = await http.post(
         Uri.parse('$_base/notificaciones/revisar'),
         headers: await _headers(),
       ).timeout(const Duration(seconds: 10));
-    } catch (_) {}
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        debugPrint('[notificaciones] revisar devolvió ${res.statusCode}: ${res.body}');
+      }
+    } catch (e) {
+      debugPrint('[notificaciones] revisar falló: $e');
+    }
   }
 
   /// GET /analitica/prediccion/:idSucursal — sirve desde caché; sin espera larga

@@ -31,20 +31,15 @@ let MovimientosService = class MovimientosService {
                     include: {
                         productos: true,
                         sucursales: true,
-                        detalle_transferencia: {
-                            take: 1,
-                            include: {
-                                transferencias: {
-                                    include: {
-                                        sucursales_transferencias_id_sucursal_origenTosucursales: {
-                                            select: { nom_sucursal: true },
-                                        },
-                                        sucursales_transferencias_id_sucursal_destinoTosucursales: {
-                                            select: { nom_sucursal: true },
-                                        },
-                                    },
-                                },
-                            },
+                    },
+                },
+                transferencias: {
+                    include: {
+                        sucursales_transferencias_id_sucursal_origenTosucursales: {
+                            select: { nom_sucursal: true },
+                        },
+                        sucursales_transferencias_id_sucursal_destinoTosucursales: {
+                            select: { nom_sucursal: true },
                         },
                     },
                 },

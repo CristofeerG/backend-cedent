@@ -41,6 +41,7 @@ async function main() {
                 id_transferencia: idTransferencia,
                 id_lote: movimiento.id_lote,
                 cantidad: movimiento.cantidad,
+                rol: 'DESTINO',
             },
         });
         migrados++;
